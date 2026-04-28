@@ -6,9 +6,11 @@ Webcam and screen capture with MJPEG streaming.
 import time
 import threading
 import logging
+import struct
 import cv2
 import numpy as np
 import mss
+import sounddevice as sd
 from config import JPEG_QUALITY, STREAM_WIDTH, STREAM_HEIGHT, STREAM_FPS
 
 logger = logging.getLogger("streamdrop.streaming")
@@ -93,6 +95,54 @@ class ScreenStreamer:
                 logger.info("🖥️ Screen capture released")
 
 
+class AudioStreamer:
+    """Captures default audio input (microphone or stereo mix) using sounddevice."""
+
+    def __init__(self, samplerate=44100, channels=2, chunk_size=1024):
+        self.samplerate = samplerate
+        self.channels = channels
+        self.chunk_size = chunk_size
+        self._stream = None
+        self._lock = threading.Lock()
+
+    def open(self):
+        """Initialize and start the audio input stream."""
+        with self._lock:
+            if self._stream is None:
+                try:
+                    self._stream = sd.InputStream(
+                        samplerate=self.samplerate,
+                        channels=self.channels,
+                        dtype="int16",
+                    )
+                    self._stream.start()
+                    logger.info("🎤 Audio capture initialized")
+                except Exception as e:
+                    logger.error(f"Audio capture error: {e}")
+
+    def read_chunk(self) -> bytes | None:
+        """Read a chunk of audio frames. Returns raw PCM bytes."""
+        with self._lock:
+            if self._stream is None or not self._stream.active:
+                return None
+            try:
+                data, overflowed = self._stream.read(self.chunk_size)
+                if data is not None:
+                    return data.tobytes()
+            except Exception as e:
+                pass
+            return None
+
+    def release(self):
+        """Release audio stream resources."""
+        with self._lock:
+            if self._stream:
+                self._stream.stop()
+                self._stream.close()
+                self._stream = None
+                logger.info("🎤 Audio capture released")
+
+
 class StreamManager:
     """
     Singleton that manages the active streamer.
@@ -102,6 +152,7 @@ class StreamManager:
     def __init__(self):
         self._webcam = WebcamStreamer()
         self._screen = ScreenStreamer()
+        self._audio = AudioStreamer()
         self._active_mode = "webcam"  # "webcam" or "screen"
         self._running = False
         self._lock = threading.Lock()
@@ -130,19 +181,21 @@ class StreamManager:
         return self._webcam if self._active_mode == "webcam" else self._screen
 
     def start(self):
-        """Start the active streamer."""
+        """Start the active streamer and audio."""
         with self._lock:
             if not self._running:
                 self._active_streamer.open()
+                self._audio.open()
                 self._running = True
                 logger.info(f"▶️ Streaming started (mode={self._active_mode})")
 
     def stop(self):
-        """Stop the active streamer."""
+        """Stop the active streamer and audio."""
         with self._lock:
             if self._running:
                 self._webcam.release()
                 self._screen.release()
+                self._audio.release()
                 self._running = False
                 logger.info("⏹️ Streaming stopped")
 
@@ -212,6 +265,41 @@ class StreamManager:
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
+    def generate_audio(self):
+        """
+        Generator that yields a WAV stream with infinite length.
+        """
+        samplerate = self._audio.samplerate
+        channels = self._audio.channels
+        bits = 16
+
+        byte_rate = samplerate * channels * (bits // 8)
+        block_align = channels * (bits // 8)
+
+        # WAV Header with 0xFFFFFFFF for unknown data size
+        header = b"RIFF" + struct.pack("<I", 0xFFFFFFFF) + b"WAVE"
+        header += (
+            b"fmt "
+            + struct.pack("<I", 16)
+            + struct.pack("<H", 1)
+            + struct.pack("<H", channels)
+        )
+        header += (
+            struct.pack("<I", samplerate)
+            + struct.pack("<I", byte_rate)
+            + struct.pack("<H", block_align)
+            + struct.pack("<H", bits)
+        )
+        header += b"data" + struct.pack("<I", 0xFFFFFFFF)
+
+        yield header
+
+        while self._running:
+            chunk = self._audio.read_chunk()
+            if chunk:
+                yield chunk
+            else:
+                time.sleep(0.01)
 
 # ── Module-level singleton ──────────────────────────────
 stream_manager = StreamManager()

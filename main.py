@@ -217,6 +217,20 @@ def video_feed():
     )
 
 
+@app.get("/api/stream/audio")
+def audio_feed():
+    """
+    Continuous WAV audio stream endpoint.
+    """
+    if not stream_manager.is_running:
+        raise HTTPException(status_code=503, detail="Stream is not running")
+
+    return StreamingResponse(
+        stream_manager.generate_audio(),
+        media_type="audio/wav",
+    )
+
+
 @app.post("/api/stream/start")
 async def stream_start():
     """Start the video stream."""
@@ -236,6 +250,18 @@ async def stream_toggle():
     """Toggle between webcam and screen capture."""
     new_mode = stream_manager.toggle()
     return {"status": "ok", "mode": new_mode, "running": stream_manager.is_running}
+
+
+@app.post("/api/shutdown")
+def shutdown_server():
+    """Shut down the server safely from the UI."""
+    import threading
+    import os
+    def suicide():
+        time.sleep(1)
+        os._exit(0)
+    threading.Thread(target=suicide, daemon=True).start()
+    return {"status": "ok", "message": "Shutting down"}
 
 
 # ── Routes: Files ───────────────────────────────────────
@@ -405,8 +431,26 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(default=""
 
 # ── Entry Point ─────────────────────────────────────────
 
+def _kill_process_on_port(port: int):
+    """Attempt to forcefully kill any process holding our target port on Windows."""
+    import os
+    import subprocess
+    try:
+        if os.name == 'nt':
+            result = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True).decode()
+            for line in result.strip().split('\\n'):
+                parts = line.strip().split()
+                if len(parts) >= 5 and parts[1].endswith(f":{port}"):
+                    pid = parts[-1]
+                    if pid and pid != "0":
+                        subprocess.call(f'taskkill /F /PID {pid}', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
 if __name__ == "__main__":
     import uvicorn
+    
+    _kill_process_on_port(PORT)
 
     uvicorn.run(
         "main:app",

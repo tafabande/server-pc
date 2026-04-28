@@ -8,3 +8,23 @@
 21:02:17 │ streamdrop               │ INFO    │ ============================================================
 21:02:27 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
 21:02:27 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.
+21:03:23 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+21:03:34 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+21:03:34 │ streamdrop               │ INFO    │ ============================================================
+21:03:34 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+21:03:34 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+21:03:34 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+21:03:34 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+21:03:34 │ streamdrop               │ INFO    │ ============================================================
+21:04:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:51666 (total: 1)
+21:11:25 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.35.7.182:46664 (total: 2)
+21:11:50 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+21:12:01 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+21:12:01 │ streamdrop               │ INFO    │ ============================================================
+21:12:01 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+21:12:01 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+21:12:01 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+21:12:01 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+21:12:01 │ streamdrop               │ INFO    │ ============================================================
+21:12:11 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
+21:12:11 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.

@@ -1,6 +1,6 @@
 (function(){'use strict';
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('.pin-digit'),pinError:$('#pin-error'),pinSubmit:$('#pin-submit'),dashboard:$('#dashboard'),statusIp:$('#status-ip'),qrBtn:$('#qr-btn'),streamPanel:$('#stream-panel'),streamStatus:$('#stream-status'),streamPlaceholder:$('#stream-placeholder'),streamImg:$('#stream-img'),startBtn:$('#stream-start-btn'),stopBtn:$('#stream-stop-btn'),toggleBtn:$('#stream-toggle-btn'),toggleLabel:$('#toggle-label'),qualityValue:$('#quality-value'),dropZone:$('#drop-zone'),fileInput:$('#file-input'),uploadProgress:$('#upload-progress'),progressFilename:$('#progress-filename'),progressPercent:$('#progress-percent'),progressBarFill:$('#progress-bar-fill'),galleryGrid:$('#gallery-grid'),emptyState:$('#empty-state'),fileCount:$('#file-count'),qrModal:$('#qr-modal'),qrImg:$('#qr-img'),qrClose:$('#qr-close'),modalUrl:$('#modal-url'),qrCopyBtn:$('#qr-copy-btn'),lightbox:$('#lightbox'),lightboxImg:$('#lightbox-img'),lightboxVideo:$('#lightbox-video'),lightboxClose:$('#lightbox-close'),toastContainer:$('#toast-container'),clipboardText:$('#clipboard-text'),clipboardCopy:$('#clipboard-copy'),clipboardClear:$('#clipboard-clear'),syncIndicator:$('#sync-indicator'),syncLabel:$('#sync-label'),wsIndicator:$('#ws-indicator'),wsDot:$('#ws-indicator .ws-dot'),wsLabel:$('#ws-label'),nowPlaying:$('#now-playing'),npFilename:$('#np-filename'),npPlay:$('#np-play'),npPlayIcon:$('#np-play-icon'),npBack:$('#np-back'),npForward:$('#np-forward'),npCurrentTime:$('#np-current-time'),npDuration:$('#np-duration'),npProgressFill:$('#np-progress-fill'),npProgressTrack:$('#np-progress-track'),npClose:$('#np-close'),hiddenAudio:$('#hidden-audio')};
+const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('.pin-digit'),pinError:$('#pin-error'),pinSubmit:$('#pin-submit'),dashboard:$('#dashboard'),statusIp:$('#status-ip'),qrBtn:$('#qr-btn'),shutdownBtn:$('#shutdown-btn'),streamPanel:$('#stream-panel'),streamStatus:$('#stream-status'),streamPlaceholder:$('#stream-placeholder'),streamImg:$('#stream-img'),streamViewport:$('#stream-viewport'),streamFullscreenBtn:$('#stream-fullscreen-btn'),streamAudio:$('#stream-audio'),startBtn:$('#stream-start-btn'),stopBtn:$('#stream-stop-btn'),toggleBtn:$('#stream-toggle-btn'),toggleLabel:$('#toggle-label'),qualityValue:$('#quality-value'),dropZone:$('#drop-zone'),fileInput:$('#file-input'),uploadProgress:$('#upload-progress'),progressFilename:$('#progress-filename'),progressPercent:$('#progress-percent'),progressBarFill:$('#progressBarFill'),galleryGrid:$('#gallery-grid'),emptyState:$('#empty-state'),fileCount:$('#file-count'),qrModal:$('#qr-modal'),qrImg:$('#qr-img'),qrClose:$('#qr-close'),modalUrl:$('#modal-url'),qrCopyBtn:$('#qr-copy-btn'),lightbox:$('#lightbox'),lightboxImg:$('#lightbox-img'),lightboxVideo:$('#lightbox-video'),lightboxClose:$('#lightbox-close'),toastContainer:$('#toast-container'),clipboardText:$('#clipboard-text'),clipboardCopy:$('#clipboard-copy'),clipboardClear:$('#clipboard-clear'),syncIndicator:$('#sync-indicator'),syncLabel:$('#sync-label'),wsIndicator:$('#ws-indicator'),wsDot:$('#ws-indicator .ws-dot'),wsLabel:$('#ws-label'),nowPlaying:$('#now-playing'),npFilename:$('#np-filename'),npPlay:$('#np-play'),npPlayIcon:$('#np-play-icon'),npBack:$('#np-back'),npForward:$('#np-forward'),npCurrentTime:$('#np-current-time'),npDuration:$('#np-duration'),npProgressFill:$('#np-progress-fill'),npProgressTrack:$('#np-progress-track'),npClose:$('#np-close'),hiddenAudio:$('#hidden-audio')};
 
 let serverUrl='',currentMode='webcam',isStreaming=false,authToken='',ws=null,wsReconnectTimer=null;
 let clipboardDebounce=null,isLocalClipboardUpdate=false;
@@ -22,9 +22,23 @@ async function submitPin(){const pin=Array.from(dom.pinDigits).map(d=>d.value).j
 // ═══ STATUS ═══
 async function loadStatus(){try{const d=await apiJson('/api/status');serverUrl=d.url;dom.statusIp.textContent=`${d.hostname} · ${d.ip}:${d.port}`;currentMode=d.stream.mode;isStreaming=d.stream.running;updateStreamUI();if(d.stream.quality)dom.qualityValue.textContent=d.stream.quality+'%'}catch(e){dom.statusIp.textContent='Disconnected'}}
 
+dom.shutdownBtn.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to stop the server? This will disconnect all users.')) return;
+    try {
+        await apiJson('/api/shutdown', { method: 'POST' });
+        toast('Server shutting down...', 'info');
+        dom.statusIp.textContent = 'Offline';
+        dom.dashboard.style.opacity = '0.5';
+        dom.dashboard.style.pointerEvents = 'none';
+        if(ws) ws.close();
+    } catch(e) {
+        toast('Failed to shutdown server', 'error');
+    }
+});
+
 // ═══ STREAM ═══
-function updateStreamUI(){const dot=dom.streamStatus.querySelector('.stream-dot'),txt=dom.streamStatus.querySelector('span:last-child');if(isStreaming){dot.className='stream-dot live';txt.textContent='Live';dom.streamPlaceholder.classList.add('hidden');dom.streamImg.classList.remove('hidden');dom.streamImg.src='/api/stream/video?'+Date.now();dom.startBtn.disabled=true;dom.stopBtn.disabled=false}else{dot.className='stream-dot offline';txt.textContent='Offline';dom.streamPlaceholder.classList.remove('hidden');dom.streamImg.classList.add('hidden');dom.streamImg.src='';dom.startBtn.disabled=false;dom.stopBtn.disabled=true}dom.toggleLabel.textContent=currentMode==='webcam'?'Switch to Screen':'Switch to Webcam'}
-function initStreamControls(){dom.startBtn.addEventListener('click',async()=>{try{dom.startBtn.disabled=true;const d=await apiJson('/api/stream/start',{method:'POST'});isStreaming=d.running;currentMode=d.mode;updateStreamUI();if(d.quality)dom.qualityValue.textContent=d.quality+'%';toast('Stream started','success')}catch(e){toast('Failed to start stream','error');dom.startBtn.disabled=false}});dom.stopBtn.addEventListener('click',async()=>{try{dom.stopBtn.disabled=true;const d=await apiJson('/api/stream/stop',{method:'POST'});isStreaming=d.running;updateStreamUI();toast('Stream stopped','info')}catch(e){toast('Failed to stop stream','error');dom.stopBtn.disabled=false}});dom.toggleBtn.addEventListener('click',async()=>{try{dom.toggleBtn.disabled=true;const d=await apiJson('/api/stream/toggle',{method:'POST'});currentMode=d.mode;isStreaming=d.running;updateStreamUI();toast(`Switched to ${currentMode}`,'info')}catch(e){toast('Failed to toggle source','error')}finally{dom.toggleBtn.disabled=false}})}
+function updateStreamUI(){const dot=dom.streamStatus.querySelector('.stream-dot'),txt=dom.streamStatus.querySelector('span:last-child');if(isStreaming){dot.className='stream-dot live';txt.textContent='Live';dom.streamPlaceholder.classList.add('hidden');dom.streamImg.classList.remove('hidden');dom.streamImg.src='/api/stream/video?'+Date.now();if(dom.streamAudio){dom.streamAudio.src='/api/stream/audio?'+Date.now();dom.streamAudio.play().catch(e=>console.log('Audio autoplay blocked',e));}if(dom.streamFullscreenBtn)dom.streamFullscreenBtn.classList.remove('hidden');dom.startBtn.disabled=true;dom.stopBtn.disabled=false}else{dot.className='stream-dot offline';txt.textContent='Offline';dom.streamPlaceholder.classList.remove('hidden');dom.streamImg.classList.add('hidden');dom.streamImg.src='';if(dom.streamAudio){dom.streamAudio.pause();dom.streamAudio.src='';}if(dom.streamFullscreenBtn)dom.streamFullscreenBtn.classList.add('hidden');dom.startBtn.disabled=false;dom.stopBtn.disabled=true}dom.toggleLabel.textContent=currentMode==='webcam'?'Switch to Screen':'Switch to Webcam'}
+function initStreamControls(){dom.startBtn.addEventListener('click',async()=>{try{dom.startBtn.disabled=true;const d=await apiJson('/api/stream/start',{method:'POST'});isStreaming=d.running;currentMode=d.mode;updateStreamUI();if(d.quality)dom.qualityValue.textContent=d.quality+'%';toast('Stream started','success')}catch(e){toast('Failed to start stream','error');dom.startBtn.disabled=false}});dom.stopBtn.addEventListener('click',async()=>{try{dom.stopBtn.disabled=true;const d=await apiJson('/api/stream/stop',{method:'POST'});isStreaming=d.running;updateStreamUI();toast('Stream stopped','info')}catch(e){toast('Failed to stop stream','error');dom.stopBtn.disabled=false}});dom.toggleBtn.addEventListener('click',async()=>{try{dom.toggleBtn.disabled=true;const d=await apiJson('/api/stream/toggle',{method:'POST'});currentMode=d.mode;isStreaming=d.running;updateStreamUI();toast(`Switched to ${currentMode}`,'info')}catch(e){toast('Failed to toggle source','error')}finally{dom.toggleBtn.disabled=false}});if(dom.streamFullscreenBtn){dom.streamFullscreenBtn.addEventListener('click',()=>{if(!document.fullscreenElement){if(dom.streamViewport)dom.streamViewport.requestFullscreen?.()||dom.streamViewport.webkitRequestFullscreen?.();}else{document.exitFullscreen?.();}});}}
 
 // ═══ FILE UPLOAD ═══
 function initDropZone(){const z=dom.dropZone;z.addEventListener('click',()=>dom.fileInput.click());dom.fileInput.addEventListener('change',e=>{if(e.target.files.length){uploadFiles(e.target.files);e.target.value=''}});['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.add('dragover')}));['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.remove('dragover')}));z.addEventListener('drop',e=>{if(e.dataTransfer.files.length)uploadFiles(e.dataTransfer.files)})}
@@ -151,15 +165,16 @@ function openLightbox(imgSrc, videoSrc, filename, type) {
 }
 function closeLightbox() {
     dom.lightbox.classList.add('hidden');
-    dom.lightboxVideo.pause();
-    dom.lightboxVideo.src = '';
-    dom.lightboxImg.src = '';
     
-    // Stop sync
-    if (npState.playing && dom.lightboxVideo) {
+    // Stop sync and hide Now Playing if we were watching a video
+    if (dom.lightboxVideo.src) {
+        dom.lightboxVideo.pause();
         wsSend({type:'remote_control',action:'stop'});
         hideNowPlaying();
     }
+    
+    dom.lightboxVideo.src = '';
+    dom.lightboxImg.src = '';
     
     if (document.fullscreenElement) {
         document.exitFullscreen().catch(e => {});
@@ -248,16 +263,32 @@ function initCustomVideoPlayer() {
     let inactivityTimer = null;
     let isScrubbing = false;
 
+    const bottomControls = overlay.querySelector('.player-bottom-controls');
+    let isHoveringControls = false;
+
+    if (bottomControls) {
+        bottomControls.addEventListener('mouseenter', () => {
+            isHoveringControls = true;
+            showOverlay();
+        });
+        bottomControls.addEventListener('mouseleave', () => {
+            isHoveringControls = false;
+            showOverlay();
+        });
+    }
+
     function showOverlay() {
         overlay.classList.remove('idle');
         clearTimeout(inactivityTimer);
-        if (!vid.paused) {
-            inactivityTimer = setTimeout(() => overlay.classList.add('idle'), 3000);
+        if (!vid.paused && !isHoveringControls) {
+            inactivityTimer = setTimeout(() => {
+                if (!isHoveringControls && !vid.paused) overlay.classList.add('idle');
+            }, 3000);
         }
     }
 
     container.addEventListener('mousemove', showOverlay);
-    container.addEventListener('touchstart', showOverlay);
+    container.addEventListener('touchstart', showOverlay, {passive: true});
     container.addEventListener('mouseleave', () => {
         if (!vid.paused) overlay.classList.add('idle');
     });
