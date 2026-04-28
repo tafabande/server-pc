@@ -138,38 +138,98 @@ async def save_upload(file: UploadFile) -> dict:
 # ── Gallery Listing ─────────────────────────────────────
 
 
-def list_files() -> list[dict]:
-    """List all files in the shared folder with metadata."""
-    files = []
-    for item in sorted(SHARED_FOLDER.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if item.is_file() and not item.name.startswith('.'):
-            files.append(_file_info(item))
-    return files
+def list_files(subpath: str = "") -> list[dict]:
+    """List files and folders in a specific subpath of the shared folder."""
+    target_dir = (SHARED_FOLDER / subpath).resolve()
+    
+    # Path traversal protection
+    if not str(target_dir).startswith(str(SHARED_FOLDER)):
+        target_dir = SHARED_FOLDER
+        subpath = ""
+
+    items = []
+    try:
+        from favorites_manager import load_favorites
+        favorites = load_favorites()
+
+        with os.scandir(target_dir) as it:
+            # Sort: Directories first, then by modification time
+            entries = sorted(it, key=lambda e: (not e.is_dir(), -e.stat().st_mtime))
+            
+            for entry in entries:
+                # Skip hidden files and system folders
+                if entry.name.startswith('.') or entry.name in {".cache", ".logs", "thumbs"}:
+                    continue
+                
+                rel_path = Path(entry.path).relative_to(SHARED_FOLDER).as_posix()
+                
+                if entry.is_dir():
+                    items.append({
+                        "name": entry.name,
+                        "path": rel_path,
+                        "type": "folder",
+                        "size": 0,
+                        "size_formatted": "--",
+                        "modified": datetime.fromtimestamp(entry.stat().st_mtime).isoformat(),
+                        "favorite": False
+                    })
+                else:
+                    info = _file_info(Path(entry.path))
+                    info["favorite"] = rel_path in favorites
+                    items.append(info)
+                    
+                    # Use relative path for hash
+                    rel_entry = Path(entry.path).relative_to(SHARED_FOLDER).as_posix()
+                    import hashlib
+                    path_hash = hashlib.md5(rel_entry.encode()).hexdigest()
+                    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
+                    
+                    if not thumb_path.exists() and info["type"] in {"image", "video"}:
+                        import threading
+                        threading.Thread(target=_generate_thumbnail, args=(Path(entry.path),), daemon=True).start()
+                        
+    except Exception as e:
+        logger.error(f"Failed to list files in {subpath}: {e}")
+    
+    return items
 
 
 def _file_info(filepath: Path) -> dict:
     """Build metadata dict for a file."""
+    # Get path relative to SHARED_FOLDER for internal tracking
+    rel_path = filepath.relative_to(SHARED_FOLDER).as_posix()
     stat = filepath.stat()
     file_type = _get_file_type(filepath.name)
     mime, _ = mimetypes.guess_type(filepath.name)
+    
+    # Check favorite status
+    from favorites_manager import load_favorites
+    is_favorite = rel_path in load_favorites()
 
     info = {
         "name": filepath.name,
+        "filename": rel_path,  # Full relative path for API calls
         "size": stat.st_size,
         "size_formatted": _format_size(stat.st_size),
         "type": file_type,
         "mime": mime or "application/octet-stream",
         "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-        "download_url": f"/api/download/{filepath.name}",
-        "serve_url": f"/shared/{filepath.name}",
+        "download_url": f"/api/download/{rel_path}",
+        "serve_url": f"/shared/{rel_path}",
         "playable": file_type in {"video", "audio"},
-        "stream_url": f"/api/stream/media/{filepath.name}" if file_type in {"video", "audio"} else None,
+        "stream_url": f"/api/stream/media/{rel_path}" if file_type in {"video", "audio"} else None,
+        "is_dir": False,
+        "is_favorite": is_favorite
     }
 
-    # Add thumbnail URL if available
-    thumb_path = THUMB_DIR / f"{filepath.stem}_thumb.jpg"
+    # Add thumbnail URL if available (using hash of rel_path to avoid collisions)
+    import hashlib
+    path_hash = hashlib.md5(rel_path.encode()).hexdigest()
+    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
+    
     if thumb_path.exists():
-        info["thumbnail_url"] = f"/shared/thumbs/{filepath.stem}_thumb.jpg"
+        thumb_rel = thumb_path.relative_to(SHARED_FOLDER).as_posix()
+        info["thumbnail_url"] = f"/shared/{thumb_rel}"
     elif file_type == "image":
         info["thumbnail_url"] = info["serve_url"]
 
@@ -182,8 +242,12 @@ def _file_info(filepath: Path) -> dict:
 def _generate_thumbnail(filepath: Path):
     """Generate a thumbnail for images and videos."""
     try:
+        rel_path = filepath.relative_to(SHARED_FOLDER).as_posix()
         file_type = _get_file_type(filepath.name)
-        thumb_path = THUMB_DIR / f"{filepath.stem}_thumb.jpg"
+        
+        import hashlib
+        path_hash = hashlib.md5(rel_path.encode()).hexdigest()
+        thumb_path = THUMB_DIR / f"{path_hash}.jpg"
 
         if file_type == "image":
             with Image.open(filepath) as img:
@@ -193,16 +257,33 @@ def _generate_thumbnail(filepath: Path):
                 img.save(thumb_path, "JPEG", quality=70)
 
         elif file_type == "video":
-            cap = cv2.VideoCapture(str(filepath))
-            ret, frame = cap.read()
-            cap.release()
-            if ret:
-                # Resize to thumbnail
-                h, w = frame.shape[:2]
-                scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
-                new_w, new_h = int(w * scale), int(h * scale)
-                thumb = cv2.resize(frame, (new_w, new_h))
-                cv2.imwrite(str(thumb_path), thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            # Use ffmpeg -vframes 1 for speed as per checklist
+            import subprocess
+            try:
+                # Seek to 1s to avoid black frames at start
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-ss", "1",
+                    "-i", str(filepath),
+                    "-vframes", "1",
+                    "-s", f"{THUMB_SIZE[0]}x{THUMB_SIZE[1]}",
+                    "-f", "image2",
+                    str(thumb_path)
+                ]
+                # Run quietly
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            except Exception:
+                # Fallback to cv2 if ffmpeg fails or is missing
+                cap = cv2.VideoCapture(str(filepath))
+                cap.set(cv2.CAP_PROP_POS_MSEC, 1000)
+                ret, frame = cap.read()
+                cap.release()
+                if ret:
+                    h, w = frame.shape[:2]
+                    scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
+                    new_w, new_h = int(w * scale), int(h * scale)
+                    thumb = cv2.resize(frame, (new_w, new_h))
+                    cv2.imwrite(str(thumb_path), thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
 
     except Exception as e:
         logger.warning(f"Thumbnail generation failed for {filepath.name}: {e}")

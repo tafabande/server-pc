@@ -119,3 +119,49 @@
 23:18:35 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:64083 (total: 0)
 23:20:03 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:49917 (total: 1)
 23:20:10 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.189:49917 (total: 0)
+23:36:02 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:36:13 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:36:13 │ streamdrop               │ INFO    │ ============================================================
+23:36:13 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:36:13 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:36:13 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:36:13 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:36:13 │ streamdrop               │ INFO    │ ============================================================
+23:36:14 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:49673 (total: 1)
+23:37:52 │ asyncio                  │ ERROR   │ Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+Traceback (most recent call last):
+  File "C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\asyncio\events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+23:38:06 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.189:49673 (total: 0)
+23:47:27 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:47:38 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:47:38 │ streamdrop               │ INFO    │ ============================================================
+23:47:38 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:47:38 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:47:38 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:47:38 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:47:38 │ streamdrop               │ INFO    │ ============================================================
+23:47:38 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:55610 (total: 1)
+23:47:39 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:58309 (total: 2)
+23:47:39 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:60070 (total: 3)
+23:48:21 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.189:58309 (total: 2)
+23:49:00 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:49:10 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:49:10 │ streamdrop               │ INFO    │ ============================================================
+23:49:10 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:49:10 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:49:10 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:49:10 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:49:10 │ streamdrop               │ INFO    │ ============================================================
+23:49:10 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:64568 (total: 1)
+23:49:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:44336 (total: 2)
+23:49:23 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.189:64568 (total: 1)
+23:50:24 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:44336 (total: 0)
+23:50:36 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:49822 (total: 1)
+23:50:39 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:49822 (total: 0)

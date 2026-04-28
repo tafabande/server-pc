@@ -443,6 +443,72 @@ body::before {
     border-radius: var(--radius-full);
 }
 
+.gallery-toolbar {
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px;
+}
+
+.breadcrumb .btn-text {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.breadcrumb .btn-text:hover {
+    color: var(--accent-light);
+    background: var(--bg-elevated);
+}
+
+.breadcrumb .btn-text.active {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.gallery-filters {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+}
+
+#filter-favs.active {
+    color: var(--accent-light);
+    border-color: var(--accent-glow);
+    background: var(--accent-glow);
+}
+
+#filter-favs svg {
+    transition: transform 0.2s;
+}
+
+#filter-favs.active svg {
+    fill: currentColor;
+    transform: scale(1.1);
+}
+
 .drop-zone {
     margin: 16px 20px;
     border: 2px dashed var(--border);
@@ -615,8 +681,35 @@ body::before {
 }
 
 .file-icon {
-    font-size: 2rem;
+    font-size: 2.5rem;
     opacity: 0.5;
+    transition: all 0.3s;
+}
+
+.folder-icon {
+    color: var(--warning);
+    opacity: 0.8;
+}
+
+.file-card:hover .file-icon {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.fav-btn.active {
+    color: #ef4444;
+}
+
+.fav-btn svg {
+    transition: transform 0.2s;
+}
+
+.fav-btn:hover svg {
+    transform: scale(1.2);
+}
+
+.fav-btn.active svg {
+    filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
 }
 
 .file-card-info {

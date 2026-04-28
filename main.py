@@ -268,9 +268,17 @@ def shutdown_server():
 # ── Routes: Files ───────────────────────────────────────
 
 @app.get("/api/files")
-async def get_files():
-    """List all files in the shared folder."""
-    return {"files": list_files()}
+async def get_files(path: str = Query(default="")):
+    """List all files in the shared folder (or subfolder)."""
+    return {"files": list_files(path)}
+
+
+@app.post("/api/favorites/toggle")
+async def toggle_fav(filename: str = Query(...)):
+    """Toggle favorite status for a file."""
+    from favorites_manager import toggle_favorite
+    state = toggle_favorite(filename)
+    return {"status": "ok", "favorite": state}
 
 
 @app.post("/api/upload")

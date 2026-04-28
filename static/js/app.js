@@ -5,9 +5,31 @@ const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('
 let serverUrl='',currentMode='webcam',isStreaming=false,authToken='',ws=null,wsReconnectTimer=null;
 let clipboardDebounce=null,isLocalClipboardUpdate=false;
 let npState={url:'',filename:'',playing:false,current_time:0,duration:0};
+let currentPath = '';
+let showOnlyFavorites = false;
+let fileList = [];
 
 // ═══ TOAST ═══
 function toast(msg,type='info',dur=3500){const icons={success:'✓',error:'✕',info:'ℹ'};const el=document.createElement('div');el.className=`toast ${type}`;el.innerHTML=`<span class="toast-icon">${icons[type]||'ℹ'}</span><span>${msg}</span>`;dom.toastContainer.appendChild(el);setTimeout(()=>{el.classList.add('exit');setTimeout(()=>el.remove(),350)},dur)}
+
+// Initialize
+async function init() {
+    setupEventListeners();
+    updateTheme();
+    await fetchFiles();
+    setupFilters();
+}
+
+function setupFilters() {
+    const favBtn = document.getElementById('filter-favs');
+    if (favBtn) {
+        favBtn.onclick = () => {
+            showOnlyFavorites = !showOnlyFavorites;
+            favBtn.classList.toggle('active', showOnlyFavorites);
+            renderFiles(fileList);
+        };
+    }
+}
 
 // ═══ API ═══
 async function api(path,opts={}){try{const res=await fetch(path,{credentials:'include',...opts});if(res.status===401){showPinGate();throw new Error('Session expired')}if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.detail||`Error ${res.status}`)}return res}catch(e){if(e.message!=='Session expired')console.error(`API ${path}:`,e);throw e}}
@@ -46,23 +68,113 @@ async function uploadFiles(fl){for(const f of Array.from(fl))await uploadSingleF
 function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormData();fd.append('file',file);const xhr=new XMLHttpRequest();dom.uploadProgress.classList.remove('hidden');dom.progressFilename.textContent=file.name;dom.progressPercent.textContent='0%';dom.progressBarFill.style.width='0%';xhr.upload.addEventListener('progress',e=>{if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);dom.progressPercent.textContent=p+'%';dom.progressBarFill.style.width=p+'%'}});xhr.addEventListener('load',()=>{dom.uploadProgress.classList.add('hidden');if(xhr.status===200){toast(`Uploaded: ${file.name}`,'success');loadGallery()}else{let d='Upload failed';try{d=JSON.parse(xhr.responseText).detail}catch(_){}toast(d,'error')}resolve()});xhr.addEventListener('error',()=>{dom.uploadProgress.classList.add('hidden');toast('Upload failed — network error','error');resolve()});xhr.open('POST','/api/upload');xhr.withCredentials=true;xhr.send(fd)})}
 
 // ═══ GALLERY ═══
-async function loadGallery(){try{const d=await apiJson('/api/files');renderGallery(d.files)}catch(e){}}
-function renderGallery(files){dom.galleryGrid.innerHTML='';dom.fileCount.textContent=`${files.length} file${files.length!==1?'s':''}`;if(!files.length){dom.emptyState.classList.remove('hidden');return}dom.emptyState.classList.add('hidden');files.forEach((f,i)=>dom.galleryGrid.appendChild(createFileCard(f,i)))}
+async function fetchFiles() {
+    try {
+        const response = await fetch(`/api/files?path=${encodeURIComponent(currentPath)}`);
+        const data = await response.json();
+        fileList = data.files || [];
+        renderFiles(fileList);
+        updateBreadcrumb();
+    } catch (error) {
+        console.error("Failed to fetch files:", error);
+    }
+}
+
+function renderFiles(files) {
+    const container = dom.gallery;
+    container.innerHTML = '';
+    
+    let filtered = files;
+    if (showOnlyFavorites) {
+        filtered = files.filter(f => f.is_favorite);
+    }
+
+    filtered.forEach(file => {
+        container.appendChild(createFileCard(file));
+    });
+    
+    document.getElementById('file-count').textContent = `${filtered.length} items`;
+}
+
+function updateBreadcrumb() {
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (!breadcrumb) return;
+    
+    breadcrumb.innerHTML = '';
+    
+    // Root link
+    const rootBtn = document.createElement('button');
+    rootBtn.className = `btn-text ${currentPath === '' ? 'active' : ''}`;
+    rootBtn.textContent = 'Root';
+    rootBtn.onclick = () => navigatePath('');
+    breadcrumb.appendChild(rootBtn);
+    
+    if (currentPath) {
+        const parts = currentPath.split('/');
+        let pathAccumulator = '';
+        
+        parts.forEach((part, index) => {
+            breadcrumb.appendChild(document.createTextNode(' / '));
+            pathAccumulator += (index === 0 ? '' : '/') + part;
+            
+            const partBtn = document.createElement('button');
+            partBtn.className = `btn-text ${index === parts.length - 1 ? 'active' : ''}`;
+            partBtn.textContent = part;
+            const targetPath = pathAccumulator;
+            partBtn.onclick = () => navigatePath(targetPath);
+            breadcrumb.appendChild(partBtn);
+        });
+    }
+}
+
+function navigatePath(path) {
+    currentPath = path;
+    fetchFiles();
+}
+
+async function toggleFavorite(filename, event) {
+    event.stopPropagation();
+    try {
+        const response = await fetch('/api/favorites/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            // Update local state and re-render
+            const file = fileList.find(f => f.filename === filename);
+            if (file) {
+                file.is_favorite = data.is_favorite;
+                renderFiles(fileList);
+            }
+        }
+    } catch (error) {
+        console.error("Favorite toggle failed:", error);
+    }
+}
+// Deleted redundant loadGallery and renderGallery (replaced by fetchFiles and renderFiles)
 function createFileCard(file, idx) {
     const card = document.createElement('div');
-    card.className = 'file-card';
+    card.className = `file-card ${file.is_dir ? 'dir-card' : ''}`;
     card.style.animationDelay = `${idx * 0.05}s`;
     
     const prev = document.createElement('div');
     prev.className = 'file-card-preview';
     
-    if (file.type === 'image') {
+    if (file.is_dir) {
+        const ic = document.createElement('div');
+        ic.className = 'file-icon folder-icon';
+        ic.textContent = '📁';
+        prev.appendChild(ic);
+        card.addEventListener('click', () => navigatePath(file.filename));
+    } else if (file.type === 'image') {
         const img = document.createElement('img');
         img.src = file.thumbnail_url || file.serve_url;
         img.alt = file.name;
         img.loading = 'lazy';
         prev.appendChild(img);
-        prev.addEventListener('click', () => openLightbox(file.serve_url, null));
+        prev.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(file.serve_url, null); });
     } else if (file.playable) {
         if (file.type === 'video') {
             const img = document.createElement('img');
@@ -76,13 +188,13 @@ function createFileCard(file, idx) {
             overlay.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
             prev.appendChild(overlay);
             
-            prev.addEventListener('click', () => openLightbox(null, file.stream_url || file.serve_url, file.name, file.type));
+            prev.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(null, file.stream_url || file.serve_url, file.name, file.type); });
         } else if (file.type === 'audio') {
             const ic = document.createElement('div');
             ic.className = 'file-icon';
             ic.textContent = '🎵';
             prev.appendChild(ic);
-            prev.addEventListener('click', () => playMedia(file.stream_url || file.serve_url, file.name, 'audio'));
+            prev.addEventListener('click', (e) => { e.stopPropagation(); playMedia(file.stream_url || file.serve_url, file.name, 'audio'); });
         }
     } else {
         const ic = document.createElement('div');
@@ -101,25 +213,34 @@ function createFileCard(file, idx) {
     const meta = document.createElement('div');
     meta.className = 'file-card-meta';
     const sz = document.createElement('span');
-    sz.textContent = file.size_formatted;
+    sz.textContent = file.is_dir ? 'Folder' : file.size_formatted;
     
     const acts = document.createElement('div');
     acts.className = 'file-card-actions';
+    
+    // Favorite Button
+    const favBtn = document.createElement('button');
+    favBtn.className = `card-action-btn fav-btn ${file.is_favorite ? 'active' : ''}`;
+    favBtn.title = file.is_favorite ? 'Unfavorite' : 'Favorite';
+    favBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="${file.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    favBtn.addEventListener('click', e => toggleFavorite(file.filename, e));
     
     const dlBtn = document.createElement('button');
     dlBtn.className = 'card-action-btn';
     dlBtn.title = 'Download';
     dlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
-    dlBtn.addEventListener('click', e => { e.stopPropagation(); downloadFile(file.name); });
+    dlBtn.addEventListener('click', e => { e.stopPropagation(); downloadFile(file.filename); });
     
     const delBtn = document.createElement('button');
     delBtn.className = 'card-action-btn delete';
     delBtn.title = 'Delete';
     delBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteFile(file.name); });
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteFile(file.filename); });
     
-    acts.appendChild(dlBtn);
+    acts.appendChild(favBtn);
+    if (!file.is_dir) acts.appendChild(dlBtn);
     acts.appendChild(delBtn);
+    
     meta.appendChild(sz);
     meta.appendChild(acts);
     info.appendChild(nm);
