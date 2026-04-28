@@ -90,3 +90,32 @@
 23:02:34 │ streamdrop               │ INFO    │ ============================================================
 23:02:45 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
 23:02:45 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.
+23:03:14 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:03:25 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:03:25 │ streamdrop               │ INFO    │ ============================================================
+23:03:25 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:03:25 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:03:25 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:03:25 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:03:25 │ streamdrop               │ INFO    │ ============================================================
+23:04:00 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:59607 (total: 1)
+23:11:39 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:11:49 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:11:49 │ streamdrop               │ INFO    │ ============================================================
+23:11:49 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:11:49 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:11:49 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:11:49 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:11:49 │ streamdrop               │ INFO    │ ============================================================
+23:11:50 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:58288 (total: 1)
+23:11:50 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:57901 (total: 2)
+23:11:52 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:57459 (total: 3)
+23:11:52 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:62318 (total: 4)
+23:14:07 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:57459 (total: 3)
+23:14:08 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:64083 (total: 4)
+23:15:16 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:62318 (total: 3)
+23:18:35 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:57901 (total: 2)
+23:18:35 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:58288 (total: 1)
+23:18:35 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:64083 (total: 0)
+23:20:03 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:49917 (total: 1)
+23:20:10 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.189:49917 (total: 0)

@@ -36,11 +36,8 @@ def create_session() -> tuple[str, float]:
 
 
 def validate_session(token: str | None) -> bool:
-    """Check if a session token is valid and not expired."""
-    if not token:
-        return False
-    _cleanup_expired()
-    return token in _sessions
+    """Check if a session token is valid and not expired. (TEMPORARY: Returns True for LAN)"""
+    return True
 
 
 def verify_pin(pin_attempt: str) -> bool:

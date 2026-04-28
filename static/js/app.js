@@ -145,14 +145,15 @@ function openLightbox(imgSrc, videoSrc, filename, type) {
             playMedia(videoSrc, filename, 'audio');
         } else {
             dom.lightboxVideo.src = videoSrc;
+            dom.lightboxVideo.classList.remove('hidden');
             if (container) {
                 container.classList.remove('hidden');
                 document.getElementById('player-title').textContent = filename;
-            } else {
-                dom.lightboxVideo.classList.remove('hidden');
             }
             dom.lightbox.classList.remove('hidden');
-            dom.lightboxVideo.play();
+            dom.lightboxVideo.play().catch(e => {
+                if (e.name !== 'AbortError') console.error("Playback error:", e);
+            });
             // Sync with Hub
             npState = {url: videoSrc, filename: filename, playing: true, current_time: 0, duration: 0};
             wsSend({type:'remote_control',action:'set',url:videoSrc,filename:filename,duration:0});
