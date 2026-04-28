@@ -152,19 +152,32 @@ def list_files(subpath: str = "") -> list[dict]:
     subpath = subpath.lstrip("/\\")
     target_dir = (SHARED_FOLDER / subpath).resolve()
     
+    logger.info(f"Listing files in: {target_dir} (subpath: '{subpath}')")
+
     # Path traversal protection
     if not str(target_dir).startswith(str(SHARED_FOLDER)):
+        logger.warning(f"Path traversal attempt blocked: {target_dir}")
         target_dir = SHARED_FOLDER
         subpath = ""
 
     items = []
+    if not target_dir.exists():
+        logger.error(f"Directory not found: {target_dir}")
+        return []
+    
+    if not target_dir.is_dir():
+        logger.error(f"Not a directory: {target_dir}")
+        return []
+
     try:
         from favorites_manager import load_favorites
         favorites = load_favorites()
 
         with os.scandir(target_dir) as it:
             # Sort: Directories first, then by modification time
-            entries = sorted(it, key=lambda e: (not e.is_dir(), -e.stat().st_mtime))
+            entries = list(it)
+            logger.info(f"Found {len(entries)} entries in {target_dir}")
+            entries.sort(key=lambda e: (not e.is_dir(), -e.stat().st_mtime))
             
             for entry in entries:
                 # Skip hidden files and system folders
@@ -252,6 +265,9 @@ def _file_info(filepath: Path) -> dict:
 def _generate_thumbnail(filepath: Path):
     """Generate a thumbnail for images and videos."""
     try:
+        if not filepath.exists() or not filepath.is_file():
+            return
+            
         rel_path = filepath.relative_to(SHARED_FOLDER).as_posix()
         file_type = _get_file_type(filepath.name)
         
@@ -259,51 +275,55 @@ def _generate_thumbnail(filepath: Path):
         path_hash = hashlib.md5(rel_path.encode()).hexdigest()
         thumb_path = THUMB_DIR / f"{path_hash}.jpg"
 
+        if thumb_path.exists():
+            return
+
+        THUMB_DIR.mkdir(parents=True, exist_ok=True)
+
         if file_type == "image":
+            from PIL import Image
             with Image.open(filepath) as img:
                 img.thumbnail(THUMB_SIZE)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
                 img.save(thumb_path, "JPEG", quality=70)
+                logger.info(f"✅ Image thumbnail generated: {thumb_path.name}")
 
         elif file_type == "video":
-            # Use ffmpeg -vframes 1 for speed as per checklist
+            # 1. Try FFmpeg
             import subprocess
             try:
-                # Seek to 1s to avoid black frames at start
                 cmd = [
-                    "ffmpeg", "-y",
-                    "-ss", "1",
-                    "-i", str(filepath),
-                    "-vframes", "1",
-                    "-s", f"{THUMB_SIZE[0]}x{THUMB_SIZE[1]}",
-                    "-f", "image2",
-                    str(thumb_path)
+                    "ffmpeg", "-y", "-ss", "1", "-i", str(filepath),
+                    "-vframes", "1", "-s", f"{THUMB_SIZE[0]}x{THUMB_SIZE[1]}",
+                    "-f", "image2", str(thumb_path)
                 ]
-                # Run quietly
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                logger.info(f"✅ Thumbnail generated via FFmpeg: {thumb_path.name}")
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=5)
+                if thumb_path.exists():
+                    logger.info(f"✅ Video thumbnail generated via FFmpeg: {thumb_path.name}")
+                    return
             except Exception as e:
-                logger.debug(f"FFmpeg thumbnail failed, trying cv2: {e}")
-                # Fallback to cv2 if ffmpeg fails or is missing
-                try:
-                    import cv2
-                    cap = cv2.VideoCapture(str(filepath))
-                    cap.set(cv2.CAP_PROP_POS_MSEC, 1000)
-                    ret, frame = cap.read()
-                    cap.release()
-                    if ret:
-                        h, w = frame.shape[:2]
-                        scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
-                        new_w, new_h = int(w * scale), int(h * scale)
-                        thumb = cv2.resize(frame, (new_w, new_h))
-                        cv2.imwrite(str(thumb_path), thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                        logger.info(f"✅ Thumbnail generated via CV2: {thumb_path.name}")
-                except Exception as cv_err:
-                    logger.warning(f"Both FFmpeg and CV2 failed for {filepath.name}: {cv_err}")
+                logger.debug(f"FFmpeg failed for {filepath.name}, falling back to OpenCV")
+
+            # 2. Try OpenCV
+            try:
+                import cv2
+                cap = cv2.VideoCapture(str(filepath))
+                cap.set(cv2.CAP_PROP_POS_MSEC, 1000)
+                ret, frame = cap.read()
+                if ret:
+                    h, w = frame.shape[:2]
+                    scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
+                    new_w, new_h = int(w * scale), int(h * scale)
+                    thumb = cv2.resize(frame, (new_w, new_h))
+                    cv2.imwrite(str(thumb_path), thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                    logger.info(f"✅ Video thumbnail generated via OpenCV: {thumb_path.name}")
+                cap.release()
+            except Exception as cv_err:
+                logger.warning(f"Both FFmpeg and CV2 failed for {filepath.name}: {cv_err}")
 
     except Exception as e:
-        logger.warning(f"Thumbnail generation failed for {filepath.name}: {e}")
+        logger.warning(f"Thumbnail generation error for {filepath.name}: {e}")
 
 
 # ── Deletion ────────────────────────────────────────────

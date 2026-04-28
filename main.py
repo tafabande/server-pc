@@ -274,11 +274,18 @@ def shutdown_server():
 @app.get("/api/files/{path:path}")
 async def get_files(path: str = ""):
     """List all files in the shared folder (or subfolder)."""
-    # path comes from the route if using path-based, or default to ""
-    # We use unquote to handle special characters in the URL
     from urllib.parse import unquote
     decoded_path = unquote(path)
+    logger.info(f"API: GET /api/files/{decoded_path}")
     return {"files": list_files(decoded_path)}
+
+
+@app.get("/api/favorites")
+async def get_all_favorites():
+    """Get all favorited files across all directories."""
+    from favorites_manager import list_favorites_details
+    logger.info("API: GET /api/favorites")
+    return {"files": list_favorites_details()}
 
 
 @app.post("/api/favorites/toggle")
@@ -474,5 +481,5 @@ if __name__ == "__main__":
         host=HOST,
         port=PORT,
         log_level="info",
-        access_log=False,
+        access_log=True,
     )

@@ -44,7 +44,7 @@ function setupFilters() {
         favBtn.onclick = () => {
             showOnlyFavorites = !showOnlyFavorites;
             favBtn.classList.toggle('active', showOnlyFavorites);
-            renderFiles(fileList);
+            fetchFiles(); // Re-fetch to handle global favorites if needed
         };
     }
 }
@@ -88,14 +88,20 @@ function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormDa
 // ═══ GALLERY ═══
 async function fetchFiles() {
     try {
-        // Use path-based routing for robust navigation
-        const url = currentPath ? `/api/files/${encodeURIComponent(currentPath)}` : `/api/files`;
+        let url;
+        if (showOnlyFavorites) {
+            url = '/api/favorites';
+        } else {
+            url = currentPath ? `/api/files/${encodeURIComponent(currentPath)}` : `/api/files`;
+        }
+        
         const data = await apiJson(url);
         fileList = data.files || [];
         renderFiles(fileList);
         updateBreadcrumb();
     } catch (error) {
         console.error("Failed to fetch files:", error);
+        toast("Failed to load files", "error");
     }
 }
 
@@ -103,16 +109,22 @@ function renderFiles(files) {
     const container = dom.gallery;
     container.innerHTML = '';
     
-    let filtered = files;
-    if (showOnlyFavorites) {
-        filtered = files.filter(f => f.is_favorite);
+    if (files.length === 0) {
+        dom.emptyState.classList.remove('hidden');
+        dom.galleryGrid.classList.add('hidden');
+        const emptyMsg = dom.emptyState.querySelector('p');
+        if (emptyMsg) {
+            emptyMsg.textContent = showOnlyFavorites ? 'No favorites yet' : 'No files shared yet';
+        }
+    } else {
+        dom.emptyState.classList.add('hidden');
+        dom.galleryGrid.classList.remove('hidden');
+        files.forEach((file, idx) => {
+            container.appendChild(createFileCard(file, idx));
+        });
     }
-
-    filtered.forEach((file, idx) => {
-        container.appendChild(createFileCard(file, idx));
-    });
     
-    document.getElementById('file-count').textContent = `${filtered.length} items`;
+    document.getElementById('file-count').textContent = `${files.length} items`;
 }
 
 function updateBreadcrumb() {
@@ -128,7 +140,13 @@ function updateBreadcrumb() {
     rootBtn.onclick = () => navigatePath('');
     breadcrumb.appendChild(rootBtn);
     
-    if (currentPath) {
+    if (showOnlyFavorites) {
+        breadcrumb.appendChild(document.createTextNode(' / '));
+        const favLabel = document.createElement('span');
+        favLabel.className = 'btn-text active';
+        favLabel.textContent = 'Favorites';
+        breadcrumb.appendChild(favLabel);
+    } else if (currentPath) {
         const parts = currentPath.split('/');
         let pathAccumulator = '';
         
@@ -148,6 +166,9 @@ function updateBreadcrumb() {
 
 function navigatePath(path) {
     currentPath = path;
+    showOnlyFavorites = false;
+    const favBtn = document.getElementById('filter-favs');
+    if (favBtn) favBtn.classList.remove('active');
     fetchFiles();
 }
 
@@ -188,7 +209,9 @@ function createFileCard(file, idx) {
         card.addEventListener('click', () => navigatePath(file.filename));
     } else if (file.type === 'image') {
         const img = document.createElement('img');
-        img.src = file.thumbnail_url || file.serve_url;
+        // Add timestamp to bust browser cache for thumbnails
+        const thumbUrl = file.thumbnail_url || file.serve_url;
+        img.src = thumbUrl + (thumbUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
         img.alt = file.name;
         img.loading = 'lazy';
         prev.appendChild(img);
@@ -196,7 +219,8 @@ function createFileCard(file, idx) {
     } else if (file.playable) {
         if (file.type === 'video') {
             const img = document.createElement('img');
-            img.src = file.thumbnail_url || file.serve_url;
+            const thumbUrl = file.thumbnail_url || file.serve_url;
+            img.src = thumbUrl + (thumbUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
             img.alt = file.name;
             img.loading = 'lazy';
             prev.appendChild(img);

@@ -35,3 +35,17 @@ def toggle_favorite(filename: str) -> bool:
 def is_favorite(filename: str) -> bool:
     """Check if a file is favorited."""
     return filename in load_favorites()
+
+def list_favorites_details() -> list[dict]:
+    """Return full file info for all favorited files."""
+    from file_manager import _file_info
+    fav_names = load_favorites()
+    details = []
+    for name in fav_names:
+        path = SHARED_FOLDER / name
+        if path.exists():
+            try:
+                details.append(_file_info(path))
+            except Exception:
+                pass
+    return details
