@@ -175,3 +175,108 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 01:26:15 │ streamdrop               │ INFO    │ ============================================================
 01:26:25 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
 01:26:25 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.
+01:27:04 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+01:27:15 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+01:27:15 │ streamdrop               │ INFO    │ ============================================================
+01:27:15 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+01:27:15 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+01:27:15 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+01:27:15 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+01:27:15 │ streamdrop               │ INFO    │ ============================================================
+01:27:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.189:60932 (total: 1)
+01:27:20 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:27:20 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:27:20 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:27:20 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:35382 (total: 2)
+01:27:20 │ streamdrop.files         │ INFO    │ ✅ Video thumbnail generated via OpenCV: 8ca1e2e5e711fad8ea6a1250457629a4.jpg
+01:27:41 │ streamdrop               │ INFO    │ API: GET /api/files/Quick Share
+01:27:41 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\Quick Share (subpath: 'Quick Share')
+01:27:41 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\Quick Share
+01:27:46 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:27:46 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:27:46 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:28:01 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:28:01 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:28:01 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:28:01 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:56371 (total: 3)
+01:28:53 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:35382 (total: 2)
+01:29:36 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:41476 (total: 3)
+01:31:58 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:41476 (total: 2)
+01:34:34 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:39854 (total: 3)
+01:34:41 │ streamdrop               │ INFO    │ API: GET /api/files/Quick Share
+01:34:41 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\Quick Share (subpath: 'Quick Share')
+01:34:41 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\Quick Share
+01:34:42 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:42 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:42 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:44 │ streamdrop               │ INFO    │ API: GET /api/files/Quick Share
+01:34:44 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\Quick Share (subpath: 'Quick Share')
+01:34:44 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\Quick Share
+01:34:45 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:45 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:45 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:46 │ streamdrop               │ INFO    │ API: GET /api/files/tele
+01:34:46 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\tele (subpath: 'tele')
+01:34:46 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\tele
+01:34:47 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:47 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:47 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:48 │ streamdrop               │ INFO    │ API: GET /api/files/Quick Share
+01:34:48 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\Quick Share (subpath: 'Quick Share')
+01:34:48 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\Quick Share
+01:34:49 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:49 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:49 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:50 │ streamdrop               │ INFO    │ API: GET /api/files/tele
+01:34:50 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\tele (subpath: 'tele')
+01:34:50 │ streamdrop.files         │ ERROR   │ Directory not found: C:\Users\User\Desktop\server\tele
+01:34:52 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:52 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:52 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:57 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:56371 (total: 2)
+01:34:57 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:34:57 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:34:57 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:34:57 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:65214 (total: 3)
+01:35:49 │ streamdrop               │ INFO    │ API: GET /api/files/static
+01:35:49 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\static (subpath: 'static')
+01:35:49 │ streamdrop.files         │ INFO    │ Found 3 entries in C:\Users\User\Desktop\server\static
+01:36:09 │ streamdrop               │ INFO    │ API: GET /api/files/static/js
+01:36:09 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\static\js (subpath: 'static/js')
+01:36:09 │ streamdrop.files         │ INFO    │ Found 1 entries in C:\Users\User\Desktop\server\static\js
+01:36:16 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:36:16 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:36:16 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:36:30 │ streamdrop               │ INFO    │ API: GET /api/favorites
+01:36:44 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:39854 (total: 2)
+01:36:50 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:36:50 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:36:50 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:37:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:52636 (total: 3)
+01:37:36 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:37:36 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:37:36 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:37:50 │ streamdrop               │ INFO    │ API: GET /api/favorites
+01:37:52 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:37:52 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:37:52 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:37:54 │ streamdrop               │ INFO    │ API: GET /api/files/scratch
+01:37:54 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server\scratch (subpath: 'scratch')
+01:37:54 │ streamdrop.files         │ INFO    │ Found 2 entries in C:\Users\User\Desktop\server\scratch
+01:38:03 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:38:03 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:38:03 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:38:21 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:52636 (total: 2)
+01:38:22 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:65214 (total: 1)
+01:38:43 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:37228 (total: 2)
+01:38:51 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:37228 (total: 1)
+01:39:02 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:39:02 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:39:02 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:39:02 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:64608 (total: 2)
+01:39:21 │ streamdrop               │ INFO    │ API: GET /api/favorites
+01:39:23 │ streamdrop               │ INFO    │ API: GET /api/files/
+01:39:23 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+01:39:23 │ streamdrop.files         │ INFO    │ Found 24 entries in C:\Users\User\Desktop\server
+01:45:07 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:64608 (total: 1)
+01:45:10 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:54647 (total: 2)
