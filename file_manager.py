@@ -7,6 +7,8 @@ import os
 import re
 import logging
 import mimetypes
+import hashlib
+import shutil
 from pathlib import Path
 from datetime import datetime
 from PIL import Image
@@ -99,9 +101,9 @@ def _deduplicate_filename(filepath: Path) -> Path:
 # ── Upload ──────────────────────────────────────────────
 
 
-async def save_upload(file: UploadFile) -> dict:
+async def save_upload(file: UploadFile, subpath: str = "") -> dict:
     """
-    Save an uploaded file to the shared folder using chunked writing.
+    Save an uploaded file to a specific subfolder.
     Returns file metadata dict.
     """
     filename = sanitize_filename(file.filename or "unnamed_file")
@@ -109,7 +111,13 @@ async def save_upload(file: UploadFile) -> dict:
     if not _is_allowed(filename):
         raise ValueError(f"File type not allowed: {Path(filename).suffix}")
 
-    filepath = _deduplicate_filename(SHARED_FOLDER / filename)
+    target_dir = (SHARED_FOLDER / subpath).resolve()
+    # Path traversal protection
+    if not str(target_dir).startswith(str(SHARED_FOLDER)):
+        target_dir = SHARED_FOLDER
+    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    filepath = _deduplicate_filename(target_dir / filename)
     total_written = 0
 
     async with aiofiles.open(filepath, "wb") as out_file:
@@ -140,6 +148,8 @@ async def save_upload(file: UploadFile) -> dict:
 
 def list_files(subpath: str = "") -> list[dict]:
     """List files and folders in a specific subpath of the shared folder."""
+    # Clean the path to prevent absolute path escapes or traversal
+    subpath = subpath.lstrip("/\\")
     target_dir = (SHARED_FOLDER / subpath).resolve()
     
     # Path traversal protection
@@ -166,16 +176,16 @@ def list_files(subpath: str = "") -> list[dict]:
                 if entry.is_dir():
                     items.append({
                         "name": entry.name,
-                        "path": rel_path,
+                        "filename": rel_path, # Full relative path
                         "type": "folder",
                         "size": 0,
-                        "size_formatted": "--",
+                        "size_formatted": "Folder",
                         "modified": datetime.fromtimestamp(entry.stat().st_mtime).isoformat(),
-                        "favorite": False
+                        "is_dir": True,
+                        "is_favorite": rel_path in favorites
                     })
                 else:
                     info = _file_info(Path(entry.path))
-                    info["favorite"] = rel_path in favorites
                     items.append(info)
                     
                     # Use relative path for hash
@@ -272,18 +282,25 @@ def _generate_thumbnail(filepath: Path):
                 ]
                 # Run quietly
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            except Exception:
+                logger.info(f"✅ Thumbnail generated via FFmpeg: {thumb_path.name}")
+            except Exception as e:
+                logger.debug(f"FFmpeg thumbnail failed, trying cv2: {e}")
                 # Fallback to cv2 if ffmpeg fails or is missing
-                cap = cv2.VideoCapture(str(filepath))
-                cap.set(cv2.CAP_PROP_POS_MSEC, 1000)
-                ret, frame = cap.read()
-                cap.release()
-                if ret:
-                    h, w = frame.shape[:2]
-                    scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
-                    new_w, new_h = int(w * scale), int(h * scale)
-                    thumb = cv2.resize(frame, (new_w, new_h))
-                    cv2.imwrite(str(thumb_path), thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                try:
+                    import cv2
+                    cap = cv2.VideoCapture(str(filepath))
+                    cap.set(cv2.CAP_PROP_POS_MSEC, 1000)
+                    ret, frame = cap.read()
+                    cap.release()
+                    if ret:
+                        h, w = frame.shape[:2]
+                        scale = min(THUMB_SIZE[0] / w, THUMB_SIZE[1] / h)
+                        new_w, new_h = int(w * scale), int(h * scale)
+                        thumb = cv2.resize(frame, (new_w, new_h))
+                        cv2.imwrite(str(thumb_path), thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                        logger.info(f"✅ Thumbnail generated via CV2: {thumb_path.name}")
+                except Exception as cv_err:
+                    logger.warning(f"Both FFmpeg and CV2 failed for {filepath.name}: {cv_err}")
 
     except Exception as e:
         logger.warning(f"Thumbnail generation failed for {filepath.name}: {e}")
@@ -297,7 +314,7 @@ def delete_file(filename: str) -> bool:
     Safely delete a file from the shared folder.
     Returns True if deleted, raises ValueError on path traversal.
     """
-    filename = sanitize_filename(filename)
+    # Use relative path as-is, but ensure it's safe
     filepath = (SHARED_FOLDER / filename).resolve()
 
     # Path traversal check
@@ -307,11 +324,18 @@ def delete_file(filename: str) -> bool:
     if not filepath.exists():
         return False
 
-    filepath.unlink()
-
-    # Also remove thumbnail
-    thumb_path = THUMB_DIR / f"{filepath.stem}_thumb.jpg"
+    # Also remove thumbnail using the same hash logic
+    import hashlib
+    rel_path = filepath.relative_to(SHARED_FOLDER).as_posix()
+    path_hash = hashlib.md5(rel_path.encode()).hexdigest()
+    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
     thumb_path.unlink(missing_ok=True)
 
-    logger.info(f"🗑️ Deleted: {filename}")
+    if filepath.is_dir():
+        import shutil
+        shutil.rmtree(filepath)
+    else:
+        filepath.unlink()
+
+    logger.info(f"🗑️ Deleted: {rel_path}")
     return True

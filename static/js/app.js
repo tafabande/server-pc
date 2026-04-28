@@ -1,6 +1,6 @@
 (function(){'use strict';
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('.pin-digit'),pinError:$('#pin-error'),pinSubmit:$('#pin-submit'),dashboard:$('#dashboard'),statusIp:$('#status-ip'),qrBtn:$('#qr-btn'),shutdownBtn:$('#shutdown-btn'),streamPanel:$('#stream-panel'),streamStatus:$('#stream-status'),streamPlaceholder:$('#stream-placeholder'),streamImg:$('#stream-img'),streamViewport:$('#stream-viewport'),streamFullscreenBtn:$('#stream-fullscreen-btn'),streamAudio:$('#stream-audio'),startBtn:$('#stream-start-btn'),stopBtn:$('#stream-stop-btn'),toggleBtn:$('#stream-toggle-btn'),toggleLabel:$('#toggle-label'),qualityValue:$('#quality-value'),dropZone:$('#drop-zone'),fileInput:$('#file-input'),uploadProgress:$('#upload-progress'),progressFilename:$('#progress-filename'),progressPercent:$('#progress-percent'),progressBarFill:$('#progressBarFill'),galleryGrid:$('#gallery-grid'),emptyState:$('#empty-state'),fileCount:$('#file-count'),qrModal:$('#qr-modal'),qrImg:$('#qr-img'),qrClose:$('#qr-close'),modalUrl:$('#modal-url'),qrCopyBtn:$('#qr-copy-btn'),lightbox:$('#lightbox'),lightboxImg:$('#lightbox-img'),lightboxVideo:$('#lightbox-video'),lightboxClose:$('#lightbox-close'),toastContainer:$('#toast-container'),clipboardText:$('#clipboard-text'),clipboardCopy:$('#clipboard-copy'),clipboardClear:$('#clipboard-clear'),syncIndicator:$('#sync-indicator'),syncLabel:$('#sync-label'),wsIndicator:$('#ws-indicator'),wsDot:$('#ws-indicator .ws-dot'),wsLabel:$('#ws-label'),nowPlaying:$('#now-playing'),npFilename:$('#np-filename'),npPlay:$('#np-play'),npPlayIcon:$('#np-play-icon'),npBack:$('#np-back'),npForward:$('#np-forward'),npCurrentTime:$('#np-current-time'),npDuration:$('#np-duration'),npProgressFill:$('#np-progress-fill'),npProgressTrack:$('#np-progress-track'),npClose:$('#np-close'),hiddenAudio:$('#hidden-audio')};
+const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('.pin-digit'),pinError:$('#pin-error'),pinSubmit:$('#pin-submit'),dashboard:$('#dashboard'),statusIp:$('#status-ip'),qrBtn:$('#qr-btn'),shutdownBtn:$('#shutdown-btn'),streamPanel:$('#stream-panel'),streamStatus:$('#stream-status'),streamPlaceholder:$('#stream-placeholder'),streamImg:$('#stream-img'),streamViewport:$('#stream-viewport'),streamFullscreenBtn:$('#stream-fullscreen-btn'),streamAudio:$('#stream-audio'),startBtn:$('#stream-start-btn'),stopBtn:$('#stream-stop-btn'),toggleBtn:$('#stream-toggle-btn'),toggleLabel:$('#toggle-label'),qualityValue:$('#quality-value'),dropZone:$('#drop-zone'),fileInput:$('#file-input'),uploadProgress:$('#upload-progress'),progressFilename:$('#progress-filename'),progressPercent:$('#progress-percent'),progressBarFill:$('#progress-bar-fill'),galleryGrid:$('#gallery-grid'),gallery:$('#gallery-grid'),emptyState:$('#empty-state'),fileCount:$('#file-count'),qrModal:$('#qr-modal'),qrImg:$('#qr-img'),qrClose:$('#qr-close'),modalUrl:$('#modal-url'),qrCopyBtn:$('#qr-copy-btn'),lightbox:$('#lightbox'),lightboxImg:$('#lightbox-img'),lightboxVideo:$('#lightbox-video'),lightboxClose:$('#lightbox-close'),toastContainer:$('#toast-container'),clipboardText:$('#clipboard-text'),clipboardCopy:$('#clipboard-copy'),clipboardClear:$('#clipboard-clear'),syncIndicator:$('#sync-indicator'),syncLabel:$('#sync-label'),wsIndicator:$('#ws-indicator'),wsDot:$('#ws-indicator .ws-dot'),wsLabel:$('#ws-label'),nowPlaying:$('#now-playing'),npFilename:$('#np-filename'),npPlay:$('#np-play'),npPlayIcon:$('#np-play-icon'),npBack:$('#np-back'),npForward:$('#np-forward'),npCurrentTime:$('#np-current-time'),npDuration:$('#np-duration'),npProgressFill:$('#np-progress-fill'),npProgressTrack:$('#np-progress-track'),npClose:$('#np-close'),hiddenAudio:$('#hidden-audio')};
 
 let serverUrl='',currentMode='webcam',isStreaming=false,authToken='',ws=null,wsReconnectTimer=null;
 let clipboardDebounce=null,isLocalClipboardUpdate=false;
@@ -14,10 +14,28 @@ function toast(msg,type='info',dur=3500){const icons={success:'✓',error:'✕',
 
 // Initialize
 async function init() {
+    initPinInput();
+    initStreamControls();
+    initDropZone();
+    initLightbox();
+    initQrModal();
+    initClipboard();
+    initNowPlaying();
+    initAdaptiveBitrate();
+    initCustomVideoPlayer();
+    
     setupEventListeners();
     updateTheme();
-    await fetchFiles();
     setupFilters();
+    
+    await checkAuth();
+    
+    // Auto-refresh gallery every minute
+    setInterval(() => {
+        if (!dom.dashboard.classList.contains('hidden')) {
+            fetchFiles();
+        }
+    }, 60000);
 }
 
 function setupFilters() {
@@ -37,7 +55,7 @@ async function apiJson(path,opts={}){return(await api(path,opts)).json()}
 
 // ═══ PIN AUTH ═══
 function showPinGate(){dom.pinGate.classList.remove('hidden');dom.dashboard.classList.add('hidden');dom.pinDigits[0]?.focus()}
-function showDashboard(){dom.pinGate.classList.add('hidden');dom.dashboard.classList.remove('hidden');loadStatus();loadGallery();connectWebSocket()}
+function showDashboard(){dom.pinGate.classList.add('hidden');dom.dashboard.classList.remove('hidden');loadStatus();fetchFiles();connectWebSocket()}
 function initPinInput(){dom.pinDigits.forEach((inp,i)=>{inp.addEventListener('input',e=>{const v=e.target.value.replace(/\D/g,'');e.target.value=v;if(v&&i<3)dom.pinDigits[i+1].focus();if(i===3&&v)submitPin()});inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){dom.pinDigits[i-1].focus();dom.pinDigits[i-1].value=''}if(e.key==='Enter')submitPin()});inp.addEventListener('focus',()=>inp.select())});dom.pinSubmit.addEventListener('click',submitPin)}
 async function submitPin(){const pin=Array.from(dom.pinDigits).map(d=>d.value).join('');if(pin.length!==4){dom.pinError.textContent='Please enter all 4 digits';return}dom.pinSubmit.disabled=true;dom.pinError.textContent='';try{const data=await apiJson('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});authToken=data.token||'';showDashboard();toast('Authenticated successfully','success')}catch(e){dom.pinError.textContent='Invalid PIN. Try again.';dom.pinInputRow.classList.add('shake');setTimeout(()=>dom.pinInputRow.classList.remove('shake'),600);dom.pinDigits.forEach(d=>d.value='');dom.pinDigits[0].focus()}finally{dom.pinSubmit.disabled=false}}
 
@@ -65,13 +83,14 @@ function initStreamControls(){dom.startBtn.addEventListener('click',async()=>{tr
 // ═══ FILE UPLOAD ═══
 function initDropZone(){const z=dom.dropZone;z.addEventListener('click',()=>dom.fileInput.click());dom.fileInput.addEventListener('change',e=>{if(e.target.files.length){uploadFiles(e.target.files);e.target.value=''}});['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.add('dragover')}));['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.remove('dragover')}));z.addEventListener('drop',e=>{if(e.dataTransfer.files.length)uploadFiles(e.dataTransfer.files)})}
 async function uploadFiles(fl){for(const f of Array.from(fl))await uploadSingleFile(f)}
-function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormData();fd.append('file',file);const xhr=new XMLHttpRequest();dom.uploadProgress.classList.remove('hidden');dom.progressFilename.textContent=file.name;dom.progressPercent.textContent='0%';dom.progressBarFill.style.width='0%';xhr.upload.addEventListener('progress',e=>{if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);dom.progressPercent.textContent=p+'%';dom.progressBarFill.style.width=p+'%'}});xhr.addEventListener('load',()=>{dom.uploadProgress.classList.add('hidden');if(xhr.status===200){toast(`Uploaded: ${file.name}`,'success');loadGallery()}else{let d='Upload failed';try{d=JSON.parse(xhr.responseText).detail}catch(_){}toast(d,'error')}resolve()});xhr.addEventListener('error',()=>{dom.uploadProgress.classList.add('hidden');toast('Upload failed — network error','error');resolve()});xhr.open('POST','/api/upload');xhr.withCredentials=true;xhr.send(fd)})}
+function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormData();fd.append('file',file);const xhr=new XMLHttpRequest();dom.uploadProgress.classList.remove('hidden');dom.progressFilename.textContent=file.name;dom.progressPercent.textContent='0%';dom.progressBarFill.style.width='0%';xhr.upload.addEventListener('progress',e=>{if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);dom.progressPercent.textContent=p+'%';dom.progressBarFill.style.width=p+'%'}});xhr.addEventListener('load',()=>{dom.uploadProgress.classList.add('hidden');if(xhr.status===200){toast(`Uploaded: ${file.name}`,'success');fetchFiles()}else{let d='Upload failed';try{d=JSON.parse(xhr.responseText).detail}catch(_){}toast(d,'error')}resolve()});xhr.addEventListener('error',()=>{dom.uploadProgress.classList.add('hidden');toast('Upload failed — network error','error');resolve()});xhr.open('POST','/api/upload?path=' + encodeURIComponent(currentPath));xhr.withCredentials=true;xhr.send(fd)})}
 
 // ═══ GALLERY ═══
 async function fetchFiles() {
     try {
-        const response = await fetch(`/api/files?path=${encodeURIComponent(currentPath)}`);
-        const data = await response.json();
+        // Use path-based routing for robust navigation
+        const url = currentPath ? `/api/files/${encodeURIComponent(currentPath)}` : `/api/files`;
+        const data = await apiJson(url);
         fileList = data.files || [];
         renderFiles(fileList);
         updateBreadcrumb();
@@ -89,8 +108,8 @@ function renderFiles(files) {
         filtered = files.filter(f => f.is_favorite);
     }
 
-    filtered.forEach(file => {
-        container.appendChild(createFileCard(file));
+    filtered.forEach((file, idx) => {
+        container.appendChild(createFileCard(file, idx));
     });
     
     document.getElementById('file-count').textContent = `${filtered.length} items`;
@@ -135,17 +154,16 @@ function navigatePath(path) {
 async function toggleFavorite(filename, event) {
     event.stopPropagation();
     try {
-        const response = await fetch('/api/favorites/toggle', {
+        const data = await apiJson('/api/favorites/toggle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename })
         });
-        const data = await response.json();
-        if (data.status === 'success') {
+        if (data.status === 'ok') {
             // Update local state and re-render
             const file = fileList.find(f => f.filename === filename);
             if (file) {
-                file.is_favorite = data.is_favorite;
+                file.is_favorite = data.favorite;
                 renderFiles(fileList);
             }
         }
@@ -252,7 +270,7 @@ function createFileCard(file, idx) {
 }
 function getFileIcon(t){return{audio:'🎵',document:'📄',archive:'📦',text:'📝',other:'📁'}[t]||'📁'}
 function downloadFile(fn){const a=document.createElement('a');a.href=`/api/download/${encodeURIComponent(fn)}`;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a)}
-async function deleteFile(fn){if(!confirm(`Delete "${fn}"?`))return;try{await apiJson(`/api/files/${encodeURIComponent(fn)}`,{method:'DELETE'});toast(`Deleted: ${fn}`,'info');loadGallery()}catch(e){toast('Failed to delete file','error')}}
+async function deleteFile(fn){if(!confirm(`Delete "${fn}"?`))return;try{await apiJson(`/api/files/${encodeURIComponent(fn)}`,{method:'DELETE'});toast(`Deleted: ${fn}`,'info');fetchFiles()}catch(e){toast('Failed to delete file','error')}}
 
 // ═══ LIGHTBOX ═══
 function openLightbox(imgSrc, videoSrc, filename, type) {
@@ -319,7 +337,7 @@ ws.onclose=()=>{const dot=dom.wsIndicator?.querySelector('.ws-dot');if(dot){dot.
 ws.onerror=()=>{};
 ws.onmessage=e=>{try{const msg=JSON.parse(e.data);handleWsMessage(msg)}catch(err){}}}
 function wsSend(msg){if(ws&&ws.readyState===1)ws.send(JSON.stringify(msg))}
-function handleWsMessage(msg){switch(msg.type){case'clipboard':if(!isLocalClipboardUpdate&&dom.clipboardText){dom.clipboardText.value=msg.text;showSyncFlash()}break;case'file_event':loadGallery();if(msg.action==='uploaded'&&msg.file)toast(`New file: ${msg.file.name}`,'info');break;case'remote_control':handleRemoteState(msg);break;case'bitrate':if(dom.qualityValue)dom.qualityValue.textContent=msg.quality+'%';break;case'connections':if(dom.wsLabel)dom.wsLabel.textContent=msg.count+' device'+(msg.count!==1?'s':'');break;case'pong':break}}
+function handleWsMessage(msg){switch(msg.type){case'clipboard':if(!isLocalClipboardUpdate&&dom.clipboardText){dom.clipboardText.value=msg.text;showSyncFlash()}break;case'file_event':fetchFiles();if(msg.action==='uploaded'&&msg.file)toast(`New file: ${msg.file.name}`,'info');break;case'remote_control':handleRemoteState(msg);break;case'bitrate':if(dom.qualityValue)dom.qualityValue.textContent=msg.quality+'%';break;case'connections':if(dom.wsLabel)dom.wsLabel.textContent=msg.count+' device'+(msg.count!==1?'s':'');break;case'pong':break}}
 
 // ═══ CLIPBOARD SYNC ═══
 function initClipboard(){if(!dom.clipboardText)return;dom.clipboardText.addEventListener('input',()=>{isLocalClipboardUpdate=true;clearTimeout(clipboardDebounce);dom.syncIndicator?.classList.add('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Syncing...';clipboardDebounce=setTimeout(()=>{wsSend({type:'clipboard',text:dom.clipboardText.value});dom.syncIndicator?.classList.remove('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Synced';isLocalClipboardUpdate=false},300)});
@@ -561,5 +579,4 @@ function initCustomVideoPlayer() {
 }
 
 // ═══ INIT ═══
-function init(){initPinInput();initStreamControls();initDropZone();initLightbox();initQrModal();initClipboard();initNowPlaying();initAdaptiveBitrate();initCustomVideoPlayer();checkAuth();setInterval(()=>{if(!dom.dashboard.classList.contains('hidden'))loadGallery()},60000)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();

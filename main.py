@@ -147,6 +147,9 @@ class PinRequest(BaseModel):
 class ClipboardRequest(BaseModel):
     text: str
 
+class FavoriteRequest(BaseModel):
+    filename: str
+
 
 # ── Routes: Root ────────────────────────────────────────
 
@@ -268,24 +271,29 @@ def shutdown_server():
 # ── Routes: Files ───────────────────────────────────────
 
 @app.get("/api/files")
-async def get_files(path: str = Query(default="")):
+@app.get("/api/files/{path:path}")
+async def get_files(path: str = ""):
     """List all files in the shared folder (or subfolder)."""
-    return {"files": list_files(path)}
+    # path comes from the route if using path-based, or default to ""
+    # We use unquote to handle special characters in the URL
+    from urllib.parse import unquote
+    decoded_path = unquote(path)
+    return {"files": list_files(decoded_path)}
 
 
 @app.post("/api/favorites/toggle")
-async def toggle_fav(filename: str = Query(...)):
+async def toggle_fav(body: FavoriteRequest):
     """Toggle favorite status for a file."""
     from favorites_manager import toggle_favorite
-    state = toggle_favorite(filename)
+    state = toggle_favorite(body.filename)
     return {"status": "ok", "favorite": state}
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """Upload a file to the shared folder."""
+async def upload_file(file: UploadFile = File(...), path: str = Query(default="")):
+    """Upload a file to a specific path in the shared folder."""
     try:
-        info = await save_upload(file)
+        info = await save_upload(file, path)
         # Broadcast file event to all WebSocket clients
         await ws_manager.broadcast_file_event("uploaded", info)
         return {"status": "ok", "file": info}
