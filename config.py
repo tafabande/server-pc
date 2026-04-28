@@ -1,20 +1,34 @@
 """
 StreamDrop — Central Configuration
 Loads settings from .env with sensible defaults.
+Supports both normal Python and PyInstaller frozen (.exe) mode.
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# When frozen (exe), use the exe's directory; otherwise use script dir
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+# Load .env from the same folder as the exe/script
+load_dotenv(BASE_DIR / ".env")
 
 # ── Paths ──────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent
 SHARED_FOLDER = Path(
     os.getenv("SHARED_FOLDER", str(Path.home() / "StreamDrop" / "Shared"))
 ).expanduser().resolve()
-STATIC_DIR = BASE_DIR / "static"
+
+# Static files: bundled inside the exe via PyInstaller _MEIPASS
+if getattr(sys, 'frozen', False):
+    _BUNDLE_DIR = Path(sys._MEIPASS)
+    STATIC_DIR = _BUNDLE_DIR / "static"
+else:
+    STATIC_DIR = BASE_DIR / "static"
 
 # ── Network ────────────────────────────────────────────
 HOST = os.getenv("HOST", "0.0.0.0")

@@ -1,14 +1,16 @@
 """
 StreamDrop — Main Application
 Unified LAN hub: live video streaming + Quick Share file interactions.
+v2: WebSocket hub, clipboard sync, adaptive bitrate, remote control.
 """
 
 import time
 import socket
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import (
     JSONResponse,
     RedirectResponse,
@@ -25,10 +27,12 @@ from security import (
     verify_pin,
     create_session,
     set_session_cookie,
+    validate_session,
 )
 from discovery import ServiceDiscovery, get_local_ip, get_server_url, generate_qr_code
 from streaming import stream_manager
 from file_manager import ensure_dirs, save_upload, list_files, delete_file
+from websocket_hub import ws_manager
 
 # ── Logging ─────────────────────────────────────────────
 
@@ -63,6 +67,30 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Network: {url}")
     logger.info(f"   Host:    {socket.gethostname()}")
     logger.info("=" * 60)
+
+    # Print QR code in terminal for instant phone connection
+    try:
+        import sys
+        qr = __import__("qrcode").QRCode(box_size=1, border=2)
+        qr.add_data(url)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        lines = []
+        for row in matrix:
+            line = "  "
+            for cell in row:
+                line += "##" if cell else "  "
+            lines.append(line)
+        qr_text = "\n".join(lines)
+        output = f"\n  Scan to connect:\n\n{qr_text}\n\n  -> {url}\n"
+        try:
+            sys.stdout.write(output)
+            sys.stdout.flush()
+        except UnicodeEncodeError:
+            sys.stdout.write(output.encode("ascii", errors="replace").decode("ascii"))
+            sys.stdout.flush()
+    except Exception as e:
+        logger.debug(f"Terminal QR skipped: {e}")
     yield
     # Shutdown
     stream_manager.stop()
@@ -75,7 +103,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="StreamDrop",
     description="Unified LAN Hub — Stream & Share",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -99,6 +127,9 @@ app.mount("/shared", StaticFiles(directory=str(SHARED_FOLDER)), name="shared")
 class PinRequest(BaseModel):
     pin: str
 
+class ClipboardRequest(BaseModel):
+    text: str
+
 
 # ── Routes: Root ────────────────────────────────────────
 
@@ -117,7 +148,7 @@ async def authenticate(body: PinRequest):
         raise HTTPException(status_code=401, detail="Invalid PIN")
 
     token, expiry = create_session()
-    response = JSONResponse(content={"status": "ok", "message": "Authenticated"})
+    response = JSONResponse(content={"status": "ok", "message": "Authenticated", "token": token})
     set_session_cookie(response, token, expiry)
     return response
 
@@ -137,7 +168,9 @@ async def status():
         "stream": {
             "running": stream_manager.is_running,
             "mode": stream_manager.mode,
+            "quality": stream_manager.quality,
         },
+        "connections": ws_manager.client_count,
     }
 
 
@@ -172,7 +205,7 @@ def video_feed():
 async def stream_start():
     """Start the video stream."""
     stream_manager.start()
-    return {"status": "ok", "mode": stream_manager.mode, "running": True}
+    return {"status": "ok", "mode": stream_manager.mode, "running": True, "quality": stream_manager.quality}
 
 
 @app.post("/api/stream/stop")
@@ -202,6 +235,8 @@ async def upload_file(file: UploadFile = File(...)):
     """Upload a file to the shared folder."""
     try:
         info = await save_upload(file)
+        # Broadcast file event to all WebSocket clients
+        await ws_manager.broadcast_file_event("uploaded", info)
         return {"status": "ok", "file": info}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -240,9 +275,53 @@ async def remove_file(filename: str):
         deleted = delete_file(filename)
         if not deleted:
             raise HTTPException(status_code=404, detail="File not found")
+        # Broadcast file event to all WebSocket clients
+        await ws_manager.broadcast_file_event("deleted", {"name": filename})
         return {"status": "ok", "deleted": filename}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Routes: Clipboard ──────────────────────────────────
+
+@app.get("/api/clipboard")
+async def get_clipboard():
+    """Get the current shared clipboard text (REST fallback)."""
+    return {"text": ws_manager.clipboard_text}
+
+
+@app.post("/api/clipboard")
+async def set_clipboard(body: ClipboardRequest):
+    """Set the shared clipboard text (REST fallback)."""
+    ws_manager.clipboard_text = body.text
+    await ws_manager.broadcast({"type": "clipboard", "text": body.text, "source": "api"})
+    return {"status": "ok", "text": body.text}
+
+
+# ── WebSocket Endpoint ──────────────────────────────────
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(default="")):
+    """
+    Main WebSocket endpoint.
+    Authenticates via session token in query param.
+    Handles all real-time features: clipboard, remote control, bitrate, file events.
+    """
+    # Validate session token
+    if not validate_session(token):
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await ws_manager.handle_message(websocket, data)
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.warning(f"WebSocket error: {e}")
+        await ws_manager.disconnect(websocket)
 
 
 # ── Entry Point ─────────────────────────────────────────

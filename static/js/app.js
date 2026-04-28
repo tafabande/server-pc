@@ -1,600 +1,96 @@
-/**
- * StreamDrop — Frontend Application
- * Handles PIN auth, stream controls, file upload/gallery, QR, toasts.
- */
-
-(function () {
-    'use strict';
-
-    // ═══ DOM REFERENCES ═══════════════════════════════
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => document.querySelectorAll(sel);
-
-    const dom = {
-        // PIN Gate
-        pinGate: $('#pin-gate'),
-        pinInputRow: $('#pin-input-row'),
-        pinDigits: $$('.pin-digit'),
-        pinError: $('#pin-error'),
-        pinSubmit: $('#pin-submit'),
-        // Dashboard
-        dashboard: $('#dashboard'),
-        // Header
-        statusIp: $('#status-ip'),
-        qrBtn: $('#qr-btn'),
-        // Stream
-        streamPanel: $('#stream-panel'),
-        streamStatus: $('#stream-status'),
-        streamPlaceholder: $('#stream-placeholder'),
-        streamImg: $('#stream-img'),
-        startBtn: $('#stream-start-btn'),
-        stopBtn: $('#stream-stop-btn'),
-        toggleBtn: $('#stream-toggle-btn'),
-        toggleLabel: $('#toggle-label'),
-        // Quick Share
-        dropZone: $('#drop-zone'),
-        fileInput: $('#file-input'),
-        uploadProgress: $('#upload-progress'),
-        progressFilename: $('#progress-filename'),
-        progressPercent: $('#progress-percent'),
-        progressBarFill: $('#progress-bar-fill'),
-        galleryGrid: $('#gallery-grid'),
-        emptyState: $('#empty-state'),
-        fileCount: $('#file-count'),
-        // QR Modal
-        qrModal: $('#qr-modal'),
-        qrImg: $('#qr-img'),
-        qrClose: $('#qr-close'),
-        modalUrl: $('#modal-url'),
-        // Lightbox
-        lightbox: $('#lightbox'),
-        lightboxImg: $('#lightbox-img'),
-        lightboxClose: $('#lightbox-close'),
-        // Toasts
-        toastContainer: $('#toast-container'),
-    };
-
-    // ═══ STATE ═════════════════════════════════════════
-    let serverUrl = '';
-    let currentMode = 'webcam';
-    let isStreaming = false;
-
-    // ═══ TOAST SYSTEM ═════════════════════════════════
-    function toast(message, type = 'info', duration = 3500) {
-        const icons = { success: '✓', error: '✕', info: 'ℹ' };
-        const el = document.createElement('div');
-        el.className = `toast ${type}`;
-        el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
-        dom.toastContainer.appendChild(el);
-
-        setTimeout(() => {
-            el.classList.add('exit');
-            setTimeout(() => el.remove(), 350);
-        }, duration);
-    }
-
-    // ═══ API HELPERS ══════════════════════════════════
-    async function api(path, options = {}) {
-        try {
-            const res = await fetch(path, {
-                credentials: 'include',
-                ...options,
-            });
-
-            if (res.status === 401) {
-                // Session expired — show PIN gate
-                showPinGate();
-                throw new Error('Session expired');
-            }
-
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.detail || `Error ${res.status}`);
-            }
-
-            return res;
-        } catch (err) {
-            if (err.message !== 'Session expired') {
-                console.error(`API ${path}:`, err);
-            }
-            throw err;
-        }
-    }
-
-    async function apiJson(path, options = {}) {
-        const res = await api(path, options);
-        return res.json();
-    }
-
-    // ═══ PIN AUTH ══════════════════════════════════════
-    function showPinGate() {
-        dom.pinGate.classList.remove('hidden');
-        dom.dashboard.classList.add('hidden');
-        dom.pinDigits[0].focus();
-    }
-
-    function showDashboard() {
-        dom.pinGate.classList.add('hidden');
-        dom.dashboard.classList.remove('hidden');
-        loadStatus();
-        loadGallery();
-    }
-
-    function initPinInput() {
-        dom.pinDigits.forEach((input, i) => {
-            input.addEventListener('input', (e) => {
-                const val = e.target.value.replace(/\D/g, '');
-                e.target.value = val;
-                if (val && i < 3) {
-                    dom.pinDigits[i + 1].focus();
-                }
-                // Auto-submit when all 4 digits entered
-                if (i === 3 && val) {
-                    submitPin();
-                }
-            });
-
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Backspace' && !e.target.value && i > 0) {
-                    dom.pinDigits[i - 1].focus();
-                    dom.pinDigits[i - 1].value = '';
-                }
-                if (e.key === 'Enter') {
-                    submitPin();
-                }
-            });
-
-            // Select all text on focus for easy re-entry
-            input.addEventListener('focus', () => input.select());
-        });
-
-        dom.pinSubmit.addEventListener('click', submitPin);
-    }
-
-    async function submitPin() {
-        const pin = Array.from(dom.pinDigits).map(d => d.value).join('');
-        if (pin.length !== 4) {
-            dom.pinError.textContent = 'Please enter all 4 digits';
-            return;
-        }
-
-        dom.pinSubmit.disabled = true;
-        dom.pinError.textContent = '';
-
-        try {
-            await apiJson('/api/auth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pin }),
-            });
-            showDashboard();
-            toast('Authenticated successfully', 'success');
-        } catch (err) {
-            dom.pinError.textContent = 'Invalid PIN. Try again.';
-            dom.pinInputRow.classList.add('shake');
-            setTimeout(() => dom.pinInputRow.classList.remove('shake'), 600);
-            // Clear inputs
-            dom.pinDigits.forEach(d => (d.value = ''));
-            dom.pinDigits[0].focus();
-        } finally {
-            dom.pinSubmit.disabled = false;
-        }
-    }
-
-    // ═══ STATUS ═══════════════════════════════════════
-    async function loadStatus() {
-        try {
-            const data = await apiJson('/api/status');
-            serverUrl = data.url;
-            dom.statusIp.textContent = `${data.hostname} · ${data.ip}:${data.port}`;
-            currentMode = data.stream.mode;
-            isStreaming = data.stream.running;
-            updateStreamUI();
-        } catch (err) {
-            dom.statusIp.textContent = 'Disconnected';
-        }
-    }
-
-    // ═══ STREAM CONTROLS ══════════════════════════════
-    function updateStreamUI() {
-        const statusDot = dom.streamStatus.querySelector('.stream-dot');
-        const statusText = dom.streamStatus.querySelector('span:last-child');
-
-        if (isStreaming) {
-            statusDot.className = 'stream-dot live';
-            statusText.textContent = 'Live';
-            dom.streamPlaceholder.classList.add('hidden');
-            dom.streamImg.classList.remove('hidden');
-            dom.streamImg.src = '/api/stream/video?' + Date.now();
-            dom.startBtn.disabled = true;
-            dom.stopBtn.disabled = false;
-        } else {
-            statusDot.className = 'stream-dot offline';
-            statusText.textContent = 'Offline';
-            dom.streamPlaceholder.classList.remove('hidden');
-            dom.streamImg.classList.add('hidden');
-            dom.streamImg.src = '';
-            dom.startBtn.disabled = false;
-            dom.stopBtn.disabled = true;
-        }
-
-        dom.toggleLabel.textContent =
-            currentMode === 'webcam' ? 'Switch to Screen' : 'Switch to Webcam';
-    }
-
-    function initStreamControls() {
-        dom.startBtn.addEventListener('click', async () => {
-            try {
-                dom.startBtn.disabled = true;
-                const data = await apiJson('/api/stream/start', { method: 'POST' });
-                isStreaming = data.running;
-                currentMode = data.mode;
-                updateStreamUI();
-                toast('Stream started', 'success');
-            } catch (err) {
-                toast('Failed to start stream', 'error');
-                dom.startBtn.disabled = false;
-            }
-        });
-
-        dom.stopBtn.addEventListener('click', async () => {
-            try {
-                dom.stopBtn.disabled = true;
-                const data = await apiJson('/api/stream/stop', { method: 'POST' });
-                isStreaming = data.running;
-                updateStreamUI();
-                toast('Stream stopped', 'info');
-            } catch (err) {
-                toast('Failed to stop stream', 'error');
-                dom.stopBtn.disabled = false;
-            }
-        });
-
-        dom.toggleBtn.addEventListener('click', async () => {
-            try {
-                dom.toggleBtn.disabled = true;
-                const data = await apiJson('/api/stream/toggle', { method: 'POST' });
-                currentMode = data.mode;
-                isStreaming = data.running;
-                updateStreamUI();
-                toast(`Switched to ${currentMode}`, 'info');
-            } catch (err) {
-                toast('Failed to toggle source', 'error');
-            } finally {
-                dom.toggleBtn.disabled = false;
-            }
-        });
-    }
-
-    // ═══ FILE UPLOAD ══════════════════════════════════
-    function initDropZone() {
-        const zone = dom.dropZone;
-
-        // Click to browse
-        zone.addEventListener('click', () => dom.fileInput.click());
-
-        // File input change
-        dom.fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                uploadFiles(e.target.files);
-                e.target.value = '';
-            }
-        });
-
-        // Drag events
-        ['dragenter', 'dragover'].forEach(evt => {
-            zone.addEventListener(evt, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                zone.classList.add('dragover');
-            });
-        });
-
-        ['dragleave', 'drop'].forEach(evt => {
-            zone.addEventListener(evt, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                zone.classList.remove('dragover');
-            });
-        });
-
-        zone.addEventListener('drop', (e) => {
-            if (e.dataTransfer.files.length) {
-                uploadFiles(e.dataTransfer.files);
-            }
-        });
-    }
-
-    async function uploadFiles(fileList) {
-        const files = Array.from(fileList);
-
-        for (const file of files) {
-            await uploadSingleFile(file);
-        }
-    }
-
-    function uploadSingleFile(file) {
-        return new Promise((resolve) => {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const xhr = new XMLHttpRequest();
-
-            // Show progress
-            dom.uploadProgress.classList.remove('hidden');
-            dom.progressFilename.textContent = file.name;
-            dom.progressPercent.textContent = '0%';
-            dom.progressBarFill.style.width = '0%';
-
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const pct = Math.round((e.loaded / e.total) * 100);
-                    dom.progressPercent.textContent = `${pct}%`;
-                    dom.progressBarFill.style.width = `${pct}%`;
-                }
-            });
-
-            xhr.addEventListener('load', () => {
-                dom.uploadProgress.classList.add('hidden');
-                if (xhr.status === 200) {
-                    toast(`Uploaded: ${file.name}`, 'success');
-                    loadGallery();
-                } else {
-                    let detail = 'Upload failed';
-                    try { detail = JSON.parse(xhr.responseText).detail; } catch (_) {}
-                    toast(detail, 'error');
-                }
-                resolve();
-            });
-
-            xhr.addEventListener('error', () => {
-                dom.uploadProgress.classList.add('hidden');
-                toast('Upload failed — network error', 'error');
-                resolve();
-            });
-
-            xhr.open('POST', '/api/upload');
-            xhr.withCredentials = true;
-            xhr.send(formData);
-        });
-    }
-
-    // ═══ GALLERY ══════════════════════════════════════
-    async function loadGallery() {
-        try {
-            const data = await apiJson('/api/files');
-            renderGallery(data.files);
-        } catch (err) {
-            // Silently fail — may be auth issue
-        }
-    }
-
-    function renderGallery(files) {
-        dom.galleryGrid.innerHTML = '';
-        dom.fileCount.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
-
-        if (files.length === 0) {
-            dom.emptyState.classList.remove('hidden');
-            return;
-        }
-
-        dom.emptyState.classList.add('hidden');
-
-        files.forEach((file, index) => {
-            const card = createFileCard(file, index);
-            dom.galleryGrid.appendChild(card);
-        });
-    }
-
-    function createFileCard(file, index) {
-        const card = document.createElement('div');
-        card.className = 'file-card';
-        card.style.animationDelay = `${index * 0.05}s`;
-
-        // Preview
-        const preview = document.createElement('div');
-        preview.className = 'file-card-preview';
-
-        if (file.type === 'image') {
-            const img = document.createElement('img');
-            img.src = file.thumbnail_url || file.serve_url;
-            img.alt = file.name;
-            img.loading = 'lazy';
-            preview.appendChild(img);
-            // Click to open lightbox
-            preview.addEventListener('click', () => openLightbox(file.serve_url));
-        } else if (file.type === 'video') {
-            const video = document.createElement('video');
-            video.src = file.serve_url;
-            video.muted = true;
-            video.preload = 'metadata';
-            video.addEventListener('mouseenter', () => { video.currentTime = 0; video.play(); });
-            video.addEventListener('mouseleave', () => video.pause());
-            preview.appendChild(video);
-            preview.addEventListener('click', () => openLightbox(null, file.serve_url));
-        } else {
-            const icon = document.createElement('div');
-            icon.className = 'file-icon';
-            icon.textContent = getFileIcon(file.type);
-            preview.appendChild(icon);
-        }
-
-        // Info
-        const info = document.createElement('div');
-        info.className = 'file-card-info';
-
-        const name = document.createElement('div');
-        name.className = 'file-card-name';
-        name.textContent = file.name;
-        name.title = file.name;
-
-        const meta = document.createElement('div');
-        meta.className = 'file-card-meta';
-
-        const size = document.createElement('span');
-        size.textContent = file.size_formatted;
-
-        const actions = document.createElement('div');
-        actions.className = 'file-card-actions';
-
-        // Download button
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'card-action-btn';
-        dlBtn.title = 'Download';
-        dlBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>`;
-        dlBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            downloadFile(file.name);
-        });
-
-        // Delete button
-        const delBtn = document.createElement('button');
-        delBtn.className = 'card-action-btn delete';
-        delBtn.title = 'Delete';
-        delBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-        </svg>`;
-        delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            deleteFile(file.name);
-        });
-
-        actions.appendChild(dlBtn);
-        actions.appendChild(delBtn);
-        meta.appendChild(size);
-        meta.appendChild(actions);
-        info.appendChild(name);
-        info.appendChild(meta);
-
-        card.appendChild(preview);
-        card.appendChild(info);
-
-        return card;
-    }
-
-    function getFileIcon(type) {
-        const icons = {
-            audio: '🎵',
-            document: '📄',
-            archive: '📦',
-            text: '📝',
-            other: '📁',
-        };
-        return icons[type] || '📁';
-    }
-
-    function downloadFile(filename) {
-        const a = document.createElement('a');
-        a.href = `/api/download/${encodeURIComponent(filename)}`;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
-
-    async function deleteFile(filename) {
-        if (!confirm(`Delete "${filename}"?`)) return;
-
-        try {
-            await apiJson(`/api/files/${encodeURIComponent(filename)}`, {
-                method: 'DELETE',
-            });
-            toast(`Deleted: ${filename}`, 'info');
-            loadGallery();
-        } catch (err) {
-            toast('Failed to delete file', 'error');
-        }
-    }
-
-    // ═══ LIGHTBOX ═════════════════════════════════════
-    function openLightbox(imgSrc, videoSrc) {
-        if (imgSrc) {
-            dom.lightboxImg.src = imgSrc;
-            dom.lightboxImg.style.display = 'block';
-        }
-        // For video, we reuse the lightbox image element but it could be extended
-        if (videoSrc) {
-            dom.lightboxImg.src = videoSrc;
-            dom.lightboxImg.style.display = 'block';
-        }
-        dom.lightbox.classList.remove('hidden');
-    }
-
-    function closeLightbox() {
-        dom.lightbox.classList.add('hidden');
-        dom.lightboxImg.src = '';
-    }
-
-    function initLightbox() {
-        dom.lightboxClose.addEventListener('click', closeLightbox);
-        dom.lightbox.addEventListener('click', (e) => {
-            if (e.target === dom.lightbox) closeLightbox();
-        });
-    }
-
-    // ═══ QR CODE MODAL ════════════════════════════════
-    function initQrModal() {
-        dom.qrBtn.addEventListener('click', async () => {
-            dom.qrImg.src = '/api/qr?' + Date.now();
-            dom.modalUrl.textContent = serverUrl || window.location.origin;
-            dom.qrModal.classList.remove('hidden');
-        });
-
-        dom.qrClose.addEventListener('click', () => {
-            dom.qrModal.classList.add('hidden');
-        });
-
-        dom.qrModal.addEventListener('click', (e) => {
-            if (e.target === dom.qrModal) dom.qrModal.classList.add('hidden');
-        });
-
-        // Click URL to copy
-        dom.modalUrl.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(dom.modalUrl.textContent);
-                toast('URL copied to clipboard', 'success');
-            } catch {
-                toast('Could not copy URL', 'error');
-            }
-        });
-    }
-
-    // ═══ AUTO-CHECK AUTH ══════════════════════════════
-    async function checkAuth() {
-        try {
-            await apiJson('/api/files');
-            // Already authenticated
-            showDashboard();
-        } catch {
-            showPinGate();
-        }
-    }
-
-    // ═══ INIT ═════════════════════════════════════════
-    function init() {
-        initPinInput();
-        initStreamControls();
-        initDropZone();
-        initLightbox();
-        initQrModal();
-
-        // Check if already authenticated (session cookie still valid)
-        checkAuth();
-
-        // Refresh gallery every 10 seconds
-        setInterval(() => {
-            if (!dom.dashboard.classList.contains('hidden')) {
-                loadGallery();
-            }
-        }, 10000);
-    }
-
-    // Start when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
+(function(){'use strict';
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+const dom={pinGate:$('#pin-gate'),pinInputRow:$('#pin-input-row'),pinDigits:$$('.pin-digit'),pinError:$('#pin-error'),pinSubmit:$('#pin-submit'),dashboard:$('#dashboard'),statusIp:$('#status-ip'),qrBtn:$('#qr-btn'),streamPanel:$('#stream-panel'),streamStatus:$('#stream-status'),streamPlaceholder:$('#stream-placeholder'),streamImg:$('#stream-img'),startBtn:$('#stream-start-btn'),stopBtn:$('#stream-stop-btn'),toggleBtn:$('#stream-toggle-btn'),toggleLabel:$('#toggle-label'),qualityValue:$('#quality-value'),dropZone:$('#drop-zone'),fileInput:$('#file-input'),uploadProgress:$('#upload-progress'),progressFilename:$('#progress-filename'),progressPercent:$('#progress-percent'),progressBarFill:$('#progress-bar-fill'),galleryGrid:$('#gallery-grid'),emptyState:$('#empty-state'),fileCount:$('#file-count'),qrModal:$('#qr-modal'),qrImg:$('#qr-img'),qrClose:$('#qr-close'),modalUrl:$('#modal-url'),lightbox:$('#lightbox'),lightboxImg:$('#lightbox-img'),lightboxVideo:$('#lightbox-video'),lightboxClose:$('#lightbox-close'),toastContainer:$('#toast-container'),clipboardText:$('#clipboard-text'),clipboardCopy:$('#clipboard-copy'),clipboardClear:$('#clipboard-clear'),syncIndicator:$('#sync-indicator'),syncLabel:$('#sync-label'),wsIndicator:$('#ws-indicator'),wsDot:$('#ws-indicator .ws-dot'),wsLabel:$('#ws-label'),nowPlaying:$('#now-playing'),npFilename:$('#np-filename'),npPlay:$('#np-play'),npPlayIcon:$('#np-play-icon'),npBack:$('#np-back'),npForward:$('#np-forward'),npCurrentTime:$('#np-current-time'),npDuration:$('#np-duration'),npProgressFill:$('#np-progress-fill'),npProgressTrack:$('#np-progress-track'),npClose:$('#np-close'),hiddenAudio:$('#hidden-audio')};
+
+let serverUrl='',currentMode='webcam',isStreaming=false,authToken='',ws=null,wsReconnectTimer=null;
+let clipboardDebounce=null,isLocalClipboardUpdate=false;
+let npState={url:'',filename:'',playing:false,current_time:0,duration:0};
+
+// ═══ TOAST ═══
+function toast(msg,type='info',dur=3500){const icons={success:'✓',error:'✕',info:'ℹ'};const el=document.createElement('div');el.className=`toast ${type}`;el.innerHTML=`<span class="toast-icon">${icons[type]||'ℹ'}</span><span>${msg}</span>`;dom.toastContainer.appendChild(el);setTimeout(()=>{el.classList.add('exit');setTimeout(()=>el.remove(),350)},dur)}
+
+// ═══ API ═══
+async function api(path,opts={}){try{const res=await fetch(path,{credentials:'include',...opts});if(res.status===401){showPinGate();throw new Error('Session expired')}if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.detail||`Error ${res.status}`)}return res}catch(e){if(e.message!=='Session expired')console.error(`API ${path}:`,e);throw e}}
+async function apiJson(path,opts={}){return(await api(path,opts)).json()}
+
+// ═══ PIN AUTH ═══
+function showPinGate(){dom.pinGate.classList.remove('hidden');dom.dashboard.classList.add('hidden');dom.pinDigits[0]?.focus()}
+function showDashboard(){dom.pinGate.classList.add('hidden');dom.dashboard.classList.remove('hidden');loadStatus();loadGallery();connectWebSocket()}
+function initPinInput(){dom.pinDigits.forEach((inp,i)=>{inp.addEventListener('input',e=>{const v=e.target.value.replace(/\D/g,'');e.target.value=v;if(v&&i<3)dom.pinDigits[i+1].focus();if(i===3&&v)submitPin()});inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){dom.pinDigits[i-1].focus();dom.pinDigits[i-1].value=''}if(e.key==='Enter')submitPin()});inp.addEventListener('focus',()=>inp.select())});dom.pinSubmit.addEventListener('click',submitPin)}
+async function submitPin(){const pin=Array.from(dom.pinDigits).map(d=>d.value).join('');if(pin.length!==4){dom.pinError.textContent='Please enter all 4 digits';return}dom.pinSubmit.disabled=true;dom.pinError.textContent='';try{const data=await apiJson('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});authToken=data.token||'';showDashboard();toast('Authenticated successfully','success')}catch(e){dom.pinError.textContent='Invalid PIN. Try again.';dom.pinInputRow.classList.add('shake');setTimeout(()=>dom.pinInputRow.classList.remove('shake'),600);dom.pinDigits.forEach(d=>d.value='');dom.pinDigits[0].focus()}finally{dom.pinSubmit.disabled=false}}
+
+// ═══ STATUS ═══
+async function loadStatus(){try{const d=await apiJson('/api/status');serverUrl=d.url;dom.statusIp.textContent=`${d.hostname} · ${d.ip}:${d.port}`;currentMode=d.stream.mode;isStreaming=d.stream.running;updateStreamUI();if(d.stream.quality)dom.qualityValue.textContent=d.stream.quality+'%'}catch(e){dom.statusIp.textContent='Disconnected'}}
+
+// ═══ STREAM ═══
+function updateStreamUI(){const dot=dom.streamStatus.querySelector('.stream-dot'),txt=dom.streamStatus.querySelector('span:last-child');if(isStreaming){dot.className='stream-dot live';txt.textContent='Live';dom.streamPlaceholder.classList.add('hidden');dom.streamImg.classList.remove('hidden');dom.streamImg.src='/api/stream/video?'+Date.now();dom.startBtn.disabled=true;dom.stopBtn.disabled=false}else{dot.className='stream-dot offline';txt.textContent='Offline';dom.streamPlaceholder.classList.remove('hidden');dom.streamImg.classList.add('hidden');dom.streamImg.src='';dom.startBtn.disabled=false;dom.stopBtn.disabled=true}dom.toggleLabel.textContent=currentMode==='webcam'?'Switch to Screen':'Switch to Webcam'}
+function initStreamControls(){dom.startBtn.addEventListener('click',async()=>{try{dom.startBtn.disabled=true;const d=await apiJson('/api/stream/start',{method:'POST'});isStreaming=d.running;currentMode=d.mode;updateStreamUI();if(d.quality)dom.qualityValue.textContent=d.quality+'%';toast('Stream started','success')}catch(e){toast('Failed to start stream','error');dom.startBtn.disabled=false}});dom.stopBtn.addEventListener('click',async()=>{try{dom.stopBtn.disabled=true;const d=await apiJson('/api/stream/stop',{method:'POST'});isStreaming=d.running;updateStreamUI();toast('Stream stopped','info')}catch(e){toast('Failed to stop stream','error');dom.stopBtn.disabled=false}});dom.toggleBtn.addEventListener('click',async()=>{try{dom.toggleBtn.disabled=true;const d=await apiJson('/api/stream/toggle',{method:'POST'});currentMode=d.mode;isStreaming=d.running;updateStreamUI();toast(`Switched to ${currentMode}`,'info')}catch(e){toast('Failed to toggle source','error')}finally{dom.toggleBtn.disabled=false}})}
+
+// ═══ FILE UPLOAD ═══
+function initDropZone(){const z=dom.dropZone;z.addEventListener('click',()=>dom.fileInput.click());dom.fileInput.addEventListener('change',e=>{if(e.target.files.length){uploadFiles(e.target.files);e.target.value=''}});['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.add('dragover')}));['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();z.classList.remove('dragover')}));z.addEventListener('drop',e=>{if(e.dataTransfer.files.length)uploadFiles(e.dataTransfer.files)})}
+async function uploadFiles(fl){for(const f of Array.from(fl))await uploadSingleFile(f)}
+function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormData();fd.append('file',file);const xhr=new XMLHttpRequest();dom.uploadProgress.classList.remove('hidden');dom.progressFilename.textContent=file.name;dom.progressPercent.textContent='0%';dom.progressBarFill.style.width='0%';xhr.upload.addEventListener('progress',e=>{if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);dom.progressPercent.textContent=p+'%';dom.progressBarFill.style.width=p+'%'}});xhr.addEventListener('load',()=>{dom.uploadProgress.classList.add('hidden');if(xhr.status===200){toast(`Uploaded: ${file.name}`,'success');loadGallery()}else{let d='Upload failed';try{d=JSON.parse(xhr.responseText).detail}catch(_){}toast(d,'error')}resolve()});xhr.addEventListener('error',()=>{dom.uploadProgress.classList.add('hidden');toast('Upload failed — network error','error');resolve()});xhr.open('POST','/api/upload');xhr.withCredentials=true;xhr.send(fd)})}
+
+// ═══ GALLERY ═══
+async function loadGallery(){try{const d=await apiJson('/api/files');renderGallery(d.files)}catch(e){}}
+function renderGallery(files){dom.galleryGrid.innerHTML='';dom.fileCount.textContent=`${files.length} file${files.length!==1?'s':''}`;if(!files.length){dom.emptyState.classList.remove('hidden');return}dom.emptyState.classList.add('hidden');files.forEach((f,i)=>dom.galleryGrid.appendChild(createFileCard(f,i)))}
+function createFileCard(file,idx){const card=document.createElement('div');card.className='file-card';card.style.animationDelay=`${idx*0.05}s`;const prev=document.createElement('div');prev.className='file-card-preview';if(file.type==='image'){const img=document.createElement('img');img.src=file.thumbnail_url||file.serve_url;img.alt=file.name;img.loading='lazy';prev.appendChild(img);prev.addEventListener('click',()=>openLightbox(file.serve_url,null))}else if(file.type==='video'){const vid=document.createElement('video');vid.src=file.serve_url;vid.muted=true;vid.preload='metadata';vid.addEventListener('mouseenter',()=>{vid.currentTime=0;vid.play()});vid.addEventListener('mouseleave',()=>vid.pause());prev.appendChild(vid);prev.addEventListener('click',()=>openLightbox(null,file.serve_url,file.name))}else if(file.type==='audio'){const ic=document.createElement('div');ic.className='file-icon';ic.textContent='🎵';prev.appendChild(ic);prev.addEventListener('click',()=>playMedia(file.serve_url,file.name,'audio'))}else{const ic=document.createElement('div');ic.className='file-icon';ic.textContent=getFileIcon(file.type);prev.appendChild(ic)}
+const info=document.createElement('div');info.className='file-card-info';const nm=document.createElement('div');nm.className='file-card-name';nm.textContent=file.name;nm.title=file.name;const meta=document.createElement('div');meta.className='file-card-meta';const sz=document.createElement('span');sz.textContent=file.size_formatted;const acts=document.createElement('div');acts.className='file-card-actions';
+const dlBtn=document.createElement('button');dlBtn.className='card-action-btn';dlBtn.title='Download';dlBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';dlBtn.addEventListener('click',e=>{e.stopPropagation();downloadFile(file.name)});
+const delBtn=document.createElement('button');delBtn.className='card-action-btn delete';delBtn.title='Delete';delBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';delBtn.addEventListener('click',e=>{e.stopPropagation();deleteFile(file.name)});
+acts.appendChild(dlBtn);acts.appendChild(delBtn);meta.appendChild(sz);meta.appendChild(acts);info.appendChild(nm);info.appendChild(meta);card.appendChild(prev);card.appendChild(info);return card}
+function getFileIcon(t){return{audio:'🎵',document:'📄',archive:'📦',text:'📝',other:'📁'}[t]||'📁'}
+function downloadFile(fn){const a=document.createElement('a');a.href=`/api/download/${encodeURIComponent(fn)}`;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a)}
+async function deleteFile(fn){if(!confirm(`Delete "${fn}"?`))return;try{await apiJson(`/api/files/${encodeURIComponent(fn)}`,{method:'DELETE'});toast(`Deleted: ${fn}`,'info');loadGallery()}catch(e){toast('Failed to delete file','error')}}
+
+// ═══ LIGHTBOX ═══
+function openLightbox(imgSrc,videoSrc,filename){dom.lightboxImg.classList.add('hidden');dom.lightboxVideo.classList.add('hidden');if(videoSrc){dom.lightboxVideo.src=videoSrc;dom.lightboxVideo.classList.remove('hidden');dom.lightboxVideo.play();if(filename)playMedia(videoSrc,filename,'video')}else if(imgSrc){dom.lightboxImg.src=imgSrc;dom.lightboxImg.classList.remove('hidden')}dom.lightbox.classList.remove('hidden')}
+function closeLightbox(){dom.lightbox.classList.add('hidden');dom.lightboxVideo.pause();dom.lightboxVideo.src='';dom.lightboxImg.src=''}
+function initLightbox(){dom.lightboxClose.addEventListener('click',closeLightbox);dom.lightbox.addEventListener('click',e=>{if(e.target===dom.lightbox)closeLightbox()})}
+
+// ═══ QR MODAL ═══
+function initQrModal(){dom.qrBtn.addEventListener('click',async()=>{dom.qrImg.src='/api/qr?'+Date.now();dom.modalUrl.textContent=serverUrl||window.location.origin;dom.qrModal.classList.remove('hidden')});dom.qrClose.addEventListener('click',()=>dom.qrModal.classList.add('hidden'));dom.qrModal.addEventListener('click',e=>{if(e.target===dom.qrModal)dom.qrModal.classList.add('hidden')});dom.modalUrl.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(dom.modalUrl.textContent);toast('URL copied','success')}catch(e){toast('Could not copy','error')}})}
+
+// ═══ WEBSOCKET ═══
+function connectWebSocket(){if(ws&&ws.readyState<2)return;const proto=location.protocol==='https:'?'wss':'ws';const url=`${proto}://${location.host}/ws?token=${encodeURIComponent(authToken)}`;ws=new WebSocket(url);
+ws.onopen=()=>{const dot=dom.wsIndicator?.querySelector('.ws-dot');if(dot){dot.className='ws-dot connected'}if(wsReconnectTimer){clearTimeout(wsReconnectTimer);wsReconnectTimer=null}};
+ws.onclose=()=>{const dot=dom.wsIndicator?.querySelector('.ws-dot');if(dot){dot.className='ws-dot disconnected'}if(dom.wsLabel)dom.wsLabel.textContent='0 devices';wsReconnectTimer=setTimeout(connectWebSocket,3000)};
+ws.onerror=()=>{};
+ws.onmessage=e=>{try{const msg=JSON.parse(e.data);handleWsMessage(msg)}catch(err){}}}
+function wsSend(msg){if(ws&&ws.readyState===1)ws.send(JSON.stringify(msg))}
+function handleWsMessage(msg){switch(msg.type){case'clipboard':if(!isLocalClipboardUpdate&&dom.clipboardText){dom.clipboardText.value=msg.text;showSyncFlash()}break;case'file_event':loadGallery();if(msg.action==='uploaded'&&msg.file)toast(`New file: ${msg.file.name}`,'info');break;case'remote_control':handleRemoteState(msg);break;case'bitrate':if(dom.qualityValue)dom.qualityValue.textContent=msg.quality+'%';break;case'connections':if(dom.wsLabel)dom.wsLabel.textContent=msg.count+' device'+(msg.count!==1?'s':'');break;case'pong':break}}
+
+// ═══ CLIPBOARD SYNC ═══
+function initClipboard(){if(!dom.clipboardText)return;dom.clipboardText.addEventListener('input',()=>{isLocalClipboardUpdate=true;clearTimeout(clipboardDebounce);dom.syncIndicator?.classList.add('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Syncing...';clipboardDebounce=setTimeout(()=>{wsSend({type:'clipboard',text:dom.clipboardText.value});dom.syncIndicator?.classList.remove('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Synced';isLocalClipboardUpdate=false},300)});
+dom.clipboardCopy?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(dom.clipboardText.value);toast('Copied to clipboard','success')}catch(e){toast('Copy failed','error')}});
+dom.clipboardClear?.addEventListener('click',()=>{dom.clipboardText.value='';wsSend({type:'clipboard',text:''});toast('Clipboard cleared','info')})}
+function showSyncFlash(){dom.syncIndicator?.classList.add('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Received';setTimeout(()=>{dom.syncIndicator?.classList.remove('syncing');if(dom.syncLabel)dom.syncLabel.textContent='Synced'},800)}
+
+// ═══ NOW PLAYING / REMOTE CONTROL ═══
+function playMedia(url,filename,mediaType){npState={url,filename,playing:true,current_time:0,duration:0};wsSend({type:'remote_control',action:'set',url,filename,duration:0});showNowPlaying();if(mediaType==='audio'){dom.hiddenAudio.src=url;dom.hiddenAudio.play()}}
+function showNowPlaying(){dom.nowPlaying.classList.remove('hidden');dom.dashboard.classList.add('has-now-playing');dom.npFilename.textContent=npState.filename||'Unknown';updateNpPlayIcon()}
+function hideNowPlaying(){dom.nowPlaying.classList.add('hidden');dom.dashboard.classList.remove('has-now-playing');dom.hiddenAudio.pause();dom.hiddenAudio.src='';npState={url:'',filename:'',playing:false,current_time:0,duration:0}}
+function updateNpPlayIcon(){const playing=npState.playing;dom.npPlayIcon.innerHTML=playing?'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>':'<polygon points="5 3 19 12 5 21 5 3"/>'}
+function handleRemoteState(msg){npState.url=msg.url||npState.url;npState.filename=msg.filename||npState.filename;npState.playing=msg.playing!==undefined?msg.playing:npState.playing;npState.current_time=msg.current_time||0;npState.duration=msg.duration||npState.duration;if(!npState.url){hideNowPlaying();return}showNowPlaying();updateNpProgress();
+if(msg.action==='play'){dom.hiddenAudio.play?.();dom.lightboxVideo&&!dom.lightboxVideo.paused||dom.lightboxVideo.play?.()}else if(msg.action==='pause'){dom.hiddenAudio.pause?.();dom.lightboxVideo?.pause?.()}else if(msg.action==='seek'){if(dom.hiddenAudio.src)dom.hiddenAudio.currentTime=npState.current_time;if(dom.lightboxVideo.src)dom.lightboxVideo.currentTime=npState.current_time}}
+function updateNpProgress(){const pct=npState.duration>0?(npState.current_time/npState.duration*100):0;dom.npProgressFill.style.width=pct+'%';dom.npCurrentTime.textContent=formatTime(npState.current_time);dom.npDuration.textContent=formatTime(npState.duration)}
+function formatTime(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+(sec<10?'0':'')+sec}
+function initNowPlaying(){dom.npPlay?.addEventListener('click',()=>{npState.playing=!npState.playing;wsSend({type:'remote_control',action:npState.playing?'play':'pause'});updateNpPlayIcon();if(npState.playing){dom.hiddenAudio.play?.()}else{dom.hiddenAudio.pause?.()}});
+dom.npBack?.addEventListener('click',()=>{npState.current_time=Math.max(0,npState.current_time-10);wsSend({type:'remote_control',action:'seek',time:npState.current_time});if(dom.hiddenAudio.src)dom.hiddenAudio.currentTime=npState.current_time;updateNpProgress()});
+dom.npForward?.addEventListener('click',()=>{npState.current_time=Math.min(npState.duration,npState.current_time+10);wsSend({type:'remote_control',action:'seek',time:npState.current_time});if(dom.hiddenAudio.src)dom.hiddenAudio.currentTime=npState.current_time;updateNpProgress()});
+dom.npProgressTrack?.addEventListener('click',e=>{const rect=dom.npProgressTrack.getBoundingClientRect();const pct=(e.clientX-rect.left)/rect.width;npState.current_time=pct*npState.duration;wsSend({type:'remote_control',action:'seek',time:npState.current_time});if(dom.hiddenAudio.src)dom.hiddenAudio.currentTime=npState.current_time;updateNpProgress()});
+dom.npClose?.addEventListener('click',()=>{wsSend({type:'remote_control',action:'stop'});hideNowPlaying()});
+// Audio time updates
+dom.hiddenAudio?.addEventListener('timeupdate',()=>{npState.current_time=dom.hiddenAudio.currentTime;npState.duration=dom.hiddenAudio.duration||0;updateNpProgress();wsSend({type:'remote_control',action:'timeupdate',time:npState.current_time,duration:npState.duration})});
+dom.hiddenAudio?.addEventListener('ended',()=>{npState.playing=false;updateNpPlayIcon()})}
+
+// ═══ ADAPTIVE BITRATE ═══
+let lastFrameTime=0,slowFrameCount=0,fastFrameCount=0,currentQuality=75;
+function initAdaptiveBitrate(){if(!dom.streamImg)return;dom.streamImg.addEventListener('load',()=>{const now=performance.now();if(lastFrameTime>0){const delta=now-lastFrameTime;if(delta>250){slowFrameCount++;fastFrameCount=0;if(slowFrameCount>5&&currentQuality>25){currentQuality=Math.max(25,currentQuality-10);wsSend({type:'bitrate',quality:currentQuality});slowFrameCount=0}}else if(delta<100){fastFrameCount++;slowFrameCount=0;if(fastFrameCount>20&&currentQuality<90){currentQuality=Math.min(90,currentQuality+5);wsSend({type:'bitrate',quality:currentQuality});fastFrameCount=0}}else{slowFrameCount=Math.max(0,slowFrameCount-1);fastFrameCount=Math.max(0,fastFrameCount-1)}}lastFrameTime=now})}
+
+// ═══ AUTH CHECK ═══
+async function checkAuth(){try{const d=await apiJson('/api/status');authToken=document.cookie.split('streamdrop_session=')[1]?.split(';')[0]||'';showDashboard()}catch(e){showPinGate()}}
+
+// ═══ INIT ═══
+function init(){initPinInput();initStreamControls();initDropZone();initLightbox();initQrModal();initClipboard();initNowPlaying();initAdaptiveBitrate();checkAuth();setInterval(()=>{if(!dom.dashboard.classList.contains('hidden'))loadGallery()},60000)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();

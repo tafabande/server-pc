@@ -891,3 +891,128 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ═══ WS INDICATOR ═══════════════════════════════════ */
+.ws-indicator {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius-full);
+    font-size: 0.75rem; color: var(--text-muted);
+}
+.ws-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    transition: background var(--duration-normal);
+}
+.ws-dot.connected { background: var(--success); animation: pulse 2s ease-in-out infinite; }
+.ws-dot.disconnected { background: var(--text-muted); }
+
+/* ═══ QUALITY BADGE ══════════════════════════════════ */
+.quality-badge {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 0.75rem; color: var(--text-muted);
+    padding: 3px 8px; background: var(--bg-card);
+    border-radius: var(--radius-full); border: 1px solid var(--border);
+}
+.panel-controls { display: flex; align-items: center; gap: 8px; }
+
+/* ═══ CLIPBOARD SYNC ════════════════════════════════ */
+.clipboard-section {
+    padding: 0 24px 20px; max-width: 1600px; margin: 0 auto;
+    position: relative; z-index: 1;
+}
+.clipboard-panel { animation-delay: 0.3s; }
+.clipboard-actions { display: flex; align-items: center; gap: 8px; }
+.clipboard-body { padding: 16px 20px; }
+.clipboard-textarea {
+    width: 100%; min-height: 80px; max-height: 200px; resize: vertical;
+    background: var(--bg-card); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 16px; font-family: var(--font); font-size: 0.9rem;
+    line-height: 1.5; outline: none;
+    transition: border-color var(--duration-normal) var(--ease-out);
+}
+.clipboard-textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.clipboard-textarea::placeholder { color: var(--text-muted); }
+.sync-indicator {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.75rem; color: var(--text-muted);
+}
+.sync-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+    transition: background var(--duration-normal);
+}
+.sync-indicator.syncing .sync-dot { background: var(--warning); animation: pulse 0.6s ease-in-out infinite; }
+.clipboard-copy-btn, .clipboard-clear-btn { padding: 6px !important; }
+
+/* ═══ NOW PLAYING BAR ════════════════════════════════ */
+.now-playing {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 24px; height: 60px;
+    background: rgba(10, 10, 20, 0.92);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--glass-border);
+    animation: slideUpBar 0.35s var(--ease-out);
+}
+.np-info { display: flex; align-items: center; gap: 8px; min-width: 0; flex-shrink: 0; max-width: 200px; }
+.np-icon { color: var(--accent-light); flex-shrink: 0; }
+.np-filename {
+    font-size: 0.8rem; font-weight: 600; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.np-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.np-btn {
+    background: none; border: none; color: var(--text-secondary);
+    padding: 6px; cursor: pointer; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--duration-fast);
+}
+.np-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.np-play-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent-gradient); color: white !important;
+}
+.np-play-btn:hover { box-shadow: 0 0 16px var(--accent-glow); }
+.np-progress-wrap {
+    display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+}
+.np-time { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.np-progress-track {
+    flex: 1; height: 4px; background: var(--bg-elevated);
+    border-radius: var(--radius-full); cursor: pointer;
+    position: relative; overflow: hidden;
+}
+.np-progress-track:hover { height: 6px; }
+.np-progress-fill {
+    height: 100%; width: 0%; background: var(--accent-gradient);
+    border-radius: var(--radius-full); transition: width 0.25s linear;
+}
+.np-close-btn { margin-left: auto; flex-shrink: 0; }
+
+@keyframes slideUpBar {
+    from { transform: translateY(100%); } to { transform: translateY(0); }
+}
+
+/* ── Lightbox video ── */
+.lightbox-video {
+    max-width: 90%; max-height: 90vh; border-radius: var(--radius-sm);
+    animation: scaleIn 0.3s var(--ease-bounce); outline: none;
+}
+
+/* ── Dashboard bottom padding when now-playing is visible ── */
+.dashboard.has-now-playing { padding-bottom: 70px; }
+
+/* ═══ RESPONSIVE ADDITIONS ═══════════════════════════ */
+@media (max-width: 900px) {
+    .clipboard-section { padding: 0 16px 16px; }
+    .now-playing { gap: 10px; padding: 8px 16px; height: 56px; }
+    .np-info { max-width: 120px; }
+}
+@media (max-width: 480px) {
+    .now-playing { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 6px; }
+    .np-progress-wrap { order: 3; width: 100%; }
+    .ws-indicator { display: none; }
+}
+
