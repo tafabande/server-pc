@@ -27,6 +27,7 @@ class WebcamStreamer:
         with self._lock:
             if self.camera is None or not self.camera.isOpened():
                 self.camera = cv2.VideoCapture(self.source, cv2.CAP_DSHOW)
+                self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Fix latency by disabling frame buffering
                 self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, STREAM_WIDTH)
                 self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, STREAM_HEIGHT)
                 self.camera.set(cv2.CAP_PROP_FPS, STREAM_FPS)

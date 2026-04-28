@@ -1,0 +1,10 @@
+21:02:06 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+21:02:17 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+21:02:17 │ streamdrop               │ INFO    │ ============================================================
+21:02:17 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+21:02:17 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+21:02:17 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+21:02:17 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+21:02:17 │ streamdrop               │ INFO    │ ============================================================
+21:02:27 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
+21:02:27 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.

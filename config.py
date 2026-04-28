@@ -20,7 +20,7 @@ load_dotenv(BASE_DIR / ".env")
 
 # ── Paths ──────────────────────────────────────────────
 SHARED_FOLDER = Path(
-    os.getenv("SHARED_FOLDER", str(BASE_DIR))
+    os.getenv("SHARED_FOLDER", os.getcwd())
 ).expanduser().resolve()
 LOG_DIR = SHARED_FOLDER / ".logs"
 

@@ -105,7 +105,7 @@ def generate_qr_code(url: str | None = None) -> bytes:
     qr.add_data(url)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color="#6366f1", back_color="#0a0a0f")
+    img = qr.make_image(fill_color="black", back_color="white")
 
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
