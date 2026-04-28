@@ -165,3 +165,13 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 23:50:24 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:44336 (total: 0)
 23:50:36 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.233.51.141:49822 (total: 1)
 23:50:39 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.233.51.141:49822 (total: 0)
+01:26:04 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+01:26:15 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+01:26:15 │ streamdrop               │ INFO    │ ============================================================
+01:26:15 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+01:26:15 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+01:26:15 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+01:26:15 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+01:26:15 │ streamdrop               │ INFO    │ ============================================================
+01:26:25 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
+01:26:25 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.

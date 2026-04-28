@@ -17,6 +17,7 @@ from fastapi.responses import (
     RedirectResponse,
     StreamingResponse,
     Response,
+    FileResponse,
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -261,11 +262,29 @@ def shutdown_server():
     """Shut down the server safely from the UI."""
     import threading
     import os
+    logger.info("🛑 Shutdown requested from UI.")
     def suicide():
         time.sleep(1)
         os._exit(0)
     threading.Thread(target=suicide, daemon=True).start()
     return {"status": "ok", "message": "Shutting down"}
+
+@app.get("/api/thumbnail/{full_path:path}")
+async def get_thumbnail(full_path: str):
+    """
+    On-demand thumbnail generation.
+    Returns the cached thumbnail if it exists, otherwise generates it.
+    """
+    from urllib.parse import unquote
+    from file_manager import get_or_generate_thumbnail
+    
+    decoded_path = unquote(full_path)
+    thumb_path = await get_or_generate_thumbnail(decoded_path)
+    
+    if thumb_path and thumb_path.exists():
+        return FileResponse(thumb_path)
+    
+    raise HTTPException(status_code=404, detail="Thumbnail not available")
 
 
 # ── Routes: Files ───────────────────────────────────────
@@ -277,7 +296,7 @@ async def get_files(path: str = ""):
     from urllib.parse import unquote
     decoded_path = unquote(path)
     logger.info(f"API: GET /api/files/{decoded_path}")
-    return {"files": list_files(decoded_path)}
+    return {"items": list_files(decoded_path)}
 
 
 @app.get("/api/favorites")
@@ -285,7 +304,7 @@ async def get_all_favorites():
     """Get all favorited files across all directories."""
     from favorites_manager import list_favorites_details
     logger.info("API: GET /api/favorites")
-    return {"files": list_favorites_details()}
+    return {"items": list_favorites_details()}
 
 
 @app.post("/api/favorites/toggle")
@@ -301,8 +320,8 @@ async def upload_file(file: UploadFile = File(...), path: str = Query(default=""
     """Upload a file to a specific path in the shared folder."""
     try:
         info = await save_upload(file, path)
-        # Broadcast file event to all WebSocket clients
-        await ws_manager.broadcast_file_event("uploaded", info)
+        # Broadcast update signal to all WebSocket clients
+        await ws_manager.broadcast_update()
         return {"status": "ok", "file": info}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -404,8 +423,8 @@ async def remove_file(filename: str):
         deleted = delete_file(filename)
         if not deleted:
             raise HTTPException(status_code=404, detail="File not found")
-        # Broadcast file event to all WebSocket clients
-        await ws_manager.broadcast_file_event("deleted", {"name": filename})
+        # Broadcast update signal to all WebSocket clients
+        await ws_manager.broadcast_update()
         return {"status": "ok", "deleted": filename}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

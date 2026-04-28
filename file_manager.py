@@ -137,8 +137,8 @@ async def save_upload(file: UploadFile, subpath: str = "") -> dict:
 
     logger.info(f"📥 Uploaded: {filepath.name} ({_format_size(total_written)})")
 
-    # Generate thumbnail in background
-    _generate_thumbnail(filepath)
+    # No longer generating thumbnails in background here
+    # get_thumbnail API will handle it on-demand
 
     return _file_info(filepath)
 
@@ -198,18 +198,8 @@ def list_files(subpath: str = "") -> list[dict]:
                         "is_favorite": rel_path in favorites
                     })
                 else:
-                    info = _file_info(Path(entry.path))
+                    info = _file_info(Path(entry.path), favorites=favorites)
                     items.append(info)
-                    
-                    # Use relative path for hash
-                    rel_entry = Path(entry.path).relative_to(SHARED_FOLDER).as_posix()
-                    import hashlib
-                    path_hash = hashlib.md5(rel_entry.encode()).hexdigest()
-                    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
-                    
-                    if not thumb_path.exists() and info["type"] in {"image", "video"}:
-                        import threading
-                        threading.Thread(target=_generate_thumbnail, args=(Path(entry.path),), daemon=True).start()
                         
     except Exception as e:
         logger.error(f"Failed to list files in {subpath}: {e}")
@@ -217,7 +207,7 @@ def list_files(subpath: str = "") -> list[dict]:
     return items
 
 
-def _file_info(filepath: Path) -> dict:
+def _file_info(filepath: Path, favorites: list[str] = None) -> dict:
     """Build metadata dict for a file."""
     # Get path relative to SHARED_FOLDER for internal tracking
     rel_path = filepath.relative_to(SHARED_FOLDER).as_posix()
@@ -226,8 +216,11 @@ def _file_info(filepath: Path) -> dict:
     mime, _ = mimetypes.guess_type(filepath.name)
     
     # Check favorite status
-    from favorites_manager import load_favorites
-    is_favorite = rel_path in load_favorites()
+    if favorites is None:
+        from favorites_manager import load_favorites
+        favorites = load_favorites()
+    
+    is_favorite = rel_path in favorites
 
     info = {
         "name": filepath.name,
@@ -245,22 +238,40 @@ def _file_info(filepath: Path) -> dict:
         "is_favorite": is_favorite
     }
 
-    # Add thumbnail URL if available (using hash of rel_path to avoid collisions)
-    import hashlib
-    path_hash = hashlib.md5(rel_path.encode()).hexdigest()
-    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
-    
-    if thumb_path.exists():
-        thumb_rel = thumb_path.relative_to(SHARED_FOLDER).as_posix()
-        info["thumbnail_url"] = f"/shared/{thumb_rel}"
-    elif file_type == "image":
-        info["thumbnail_url"] = info["serve_url"]
+    # Point to the on-demand thumbnail API
+    if file_type in {"image", "video"}:
+        info["thumbnail_url"] = f"/api/thumbnail/{rel_path}"
+    else:
+        info["thumbnail_url"] = None
 
     return info
 
 
 # ── Thumbnails ──────────────────────────────────────────
 
+
+async def get_or_generate_thumbnail(rel_path: str) -> Path:
+    """Entry point for the thumbnail API. Ensures thumbnail exists and returns path."""
+    filepath = (SHARED_FOLDER / rel_path).resolve()
+    
+    # Path traversal check
+    if not str(filepath).startswith(str(SHARED_FOLDER)):
+        return None
+        
+    if not filepath.exists() or not filepath.is_file():
+        return None
+        
+    path_hash = hashlib.md5(rel_path.encode()).hexdigest()
+    thumb_path = THUMB_DIR / f"{path_hash}.jpg"
+    
+    if thumb_path.exists():
+        return thumb_path
+        
+    # Generate synchronously (it's called from a threadpool in FastAPI if using sync def)
+    # But since we are 'async def' in main.py, we should run this in a thread if it's heavy.
+    # However, let's just make it simple for now as FFmpeg is an external process.
+    _generate_thumbnail(filepath)
+    return thumb_path
 
 def _generate_thumbnail(filepath: Path):
     """Generate a thumbnail for images and videos."""

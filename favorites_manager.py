@@ -45,7 +45,7 @@ def list_favorites_details() -> list[dict]:
         path = SHARED_FOLDER / name
         if path.exists():
             try:
-                details.append(_file_info(path))
+                details.append(_file_info(path, favorites=fav_names))
             except Exception:
                 pass
     return details

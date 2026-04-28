@@ -236,6 +236,10 @@ class ConnectionManager:
             "file": file_info,
         })
 
+    async def broadcast_update(self):
+        """Send a signal to trigger a full client-side refresh."""
+        await self.broadcast({"type": "update"})
+
     @property
     def client_count(self) -> int:
         return len(self.active_connections)
