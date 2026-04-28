@@ -8,21 +8,15 @@ echo  :     Unified Stream + Share Server    :
 echo  +--------------------------------------+
 echo.
 
-:: This folder becomes the shared media folder
+:: 1. Define the folder to share (wherever this .bat file is placed)
 set "SHARED_FOLDER=%~dp0"
+if "%SHARED_FOLDER:~-1%"=="\" set "SHARED_FOLDER=%SHARED_FOLDER:~0,-1%"
 echo  [*] Serving folder: %SHARED_FOLDER%
 
-:: Kill any existing StreamDrop on port 8000
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000.*LISTENING" 2^>nul') do (
-    echo  [*] Closing previous instance (PID %%a)...
-    taskkill /PID %%a /F >nul 2>&1
-)
-timeout /t 1 /nobreak >nul
-
-:: Server install location (edit this once after install)
+:: 2. Define the fixed location of the StreamDrop server code
 set "SERVER_DIR=C:\Users\User\Desktop\server"
 
-:: Auto-detect Python
+:: 3. Auto-detect Python
 where py >nul 2>&1 && (set PYTHON=py) || (
     where python >nul 2>&1 && (set PYTHON=python) || (
         echo [ERROR] Python not found. Install Python 3.10+ first.
@@ -31,7 +25,9 @@ where py >nul 2>&1 && (set PYTHON=py) || (
     )
 )
 
+:: 4. Start the server
 echo  [*] Starting StreamDrop...
 echo.
-%PYTHON% "%SERVER_DIR%\main.py"
+cd /d "%SERVER_DIR%"
+%PYTHON% main.py
 pause

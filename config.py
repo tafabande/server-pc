@@ -20,8 +20,9 @@ load_dotenv(BASE_DIR / ".env")
 
 # ── Paths ──────────────────────────────────────────────
 SHARED_FOLDER = Path(
-    os.getenv("SHARED_FOLDER", str(Path.home() / "StreamDrop" / "Shared"))
+    os.getenv("SHARED_FOLDER", str(BASE_DIR))
 ).expanduser().resolve()
+LOG_DIR = SHARED_FOLDER / ".logs"
 
 # Static files: bundled inside the exe via PyInstaller _MEIPASS
 if getattr(sys, 'frozen', False):

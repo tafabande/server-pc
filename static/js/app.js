@@ -34,19 +34,135 @@ function uploadSingleFile(file){return new Promise(resolve=>{const fd=new FormDa
 // ═══ GALLERY ═══
 async function loadGallery(){try{const d=await apiJson('/api/files');renderGallery(d.files)}catch(e){}}
 function renderGallery(files){dom.galleryGrid.innerHTML='';dom.fileCount.textContent=`${files.length} file${files.length!==1?'s':''}`;if(!files.length){dom.emptyState.classList.remove('hidden');return}dom.emptyState.classList.add('hidden');files.forEach((f,i)=>dom.galleryGrid.appendChild(createFileCard(f,i)))}
-function createFileCard(file,idx){const card=document.createElement('div');card.className='file-card';card.style.animationDelay=`${idx*0.05}s`;const prev=document.createElement('div');prev.className='file-card-preview';if(file.type==='image'){const img=document.createElement('img');img.src=file.thumbnail_url||file.serve_url;img.alt=file.name;img.loading='lazy';prev.appendChild(img);prev.addEventListener('click',()=>openLightbox(file.serve_url,null))}else if(file.type==='video'){const vid=document.createElement('video');vid.src=file.serve_url;vid.muted=true;vid.preload='metadata';vid.addEventListener('mouseenter',()=>{vid.currentTime=0;vid.play()});vid.addEventListener('mouseleave',()=>vid.pause());prev.appendChild(vid);prev.addEventListener('click',()=>openLightbox(null,file.serve_url,file.name))}else if(file.type==='audio'){const ic=document.createElement('div');ic.className='file-icon';ic.textContent='🎵';prev.appendChild(ic);prev.addEventListener('click',()=>playMedia(file.serve_url,file.name,'audio'))}else{const ic=document.createElement('div');ic.className='file-icon';ic.textContent=getFileIcon(file.type);prev.appendChild(ic)}
-const info=document.createElement('div');info.className='file-card-info';const nm=document.createElement('div');nm.className='file-card-name';nm.textContent=file.name;nm.title=file.name;const meta=document.createElement('div');meta.className='file-card-meta';const sz=document.createElement('span');sz.textContent=file.size_formatted;const acts=document.createElement('div');acts.className='file-card-actions';
-const dlBtn=document.createElement('button');dlBtn.className='card-action-btn';dlBtn.title='Download';dlBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';dlBtn.addEventListener('click',e=>{e.stopPropagation();downloadFile(file.name)});
-const delBtn=document.createElement('button');delBtn.className='card-action-btn delete';delBtn.title='Delete';delBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';delBtn.addEventListener('click',e=>{e.stopPropagation();deleteFile(file.name)});
-acts.appendChild(dlBtn);acts.appendChild(delBtn);meta.appendChild(sz);meta.appendChild(acts);info.appendChild(nm);info.appendChild(meta);card.appendChild(prev);card.appendChild(info);return card}
+function createFileCard(file, idx) {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.style.animationDelay = `${idx * 0.05}s`;
+    
+    const prev = document.createElement('div');
+    prev.className = 'file-card-preview';
+    
+    if (file.type === 'image') {
+        const img = document.createElement('img');
+        img.src = file.thumbnail_url || file.serve_url;
+        img.alt = file.name;
+        img.loading = 'lazy';
+        prev.appendChild(img);
+        prev.addEventListener('click', () => openLightbox(file.serve_url, null));
+    } else if (file.playable) {
+        if (file.type === 'video') {
+            const img = document.createElement('img');
+            img.src = file.thumbnail_url || file.serve_url;
+            img.alt = file.name;
+            img.loading = 'lazy';
+            prev.appendChild(img);
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'play-overlay';
+            overlay.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+            prev.appendChild(overlay);
+            
+            prev.addEventListener('click', () => openLightbox(null, file.stream_url || file.serve_url, file.name, file.type));
+        } else if (file.type === 'audio') {
+            const ic = document.createElement('div');
+            ic.className = 'file-icon';
+            ic.textContent = '🎵';
+            prev.appendChild(ic);
+            prev.addEventListener('click', () => playMedia(file.stream_url || file.serve_url, file.name, 'audio'));
+        }
+    } else {
+        const ic = document.createElement('div');
+        ic.className = 'file-icon';
+        ic.textContent = getFileIcon(file.type);
+        prev.appendChild(ic);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'file-card-info';
+    const nm = document.createElement('div');
+    nm.className = 'file-card-name';
+    nm.textContent = file.name;
+    nm.title = file.name;
+    
+    const meta = document.createElement('div');
+    meta.className = 'file-card-meta';
+    const sz = document.createElement('span');
+    sz.textContent = file.size_formatted;
+    
+    const acts = document.createElement('div');
+    acts.className = 'file-card-actions';
+    
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'card-action-btn';
+    dlBtn.title = 'Download';
+    dlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    dlBtn.addEventListener('click', e => { e.stopPropagation(); downloadFile(file.name); });
+    
+    const delBtn = document.createElement('button');
+    delBtn.className = 'card-action-btn delete';
+    delBtn.title = 'Delete';
+    delBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteFile(file.name); });
+    
+    acts.appendChild(dlBtn);
+    acts.appendChild(delBtn);
+    meta.appendChild(sz);
+    meta.appendChild(acts);
+    info.appendChild(nm);
+    info.appendChild(meta);
+    card.appendChild(prev);
+    card.appendChild(info);
+    
+    return card;
+}
 function getFileIcon(t){return{audio:'🎵',document:'📄',archive:'📦',text:'📝',other:'📁'}[t]||'📁'}
 function downloadFile(fn){const a=document.createElement('a');a.href=`/api/download/${encodeURIComponent(fn)}`;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a)}
 async function deleteFile(fn){if(!confirm(`Delete "${fn}"?`))return;try{await apiJson(`/api/files/${encodeURIComponent(fn)}`,{method:'DELETE'});toast(`Deleted: ${fn}`,'info');loadGallery()}catch(e){toast('Failed to delete file','error')}}
 
 // ═══ LIGHTBOX ═══
-function openLightbox(imgSrc,videoSrc,filename){dom.lightboxImg.classList.add('hidden');dom.lightboxVideo.classList.add('hidden');if(videoSrc){dom.lightboxVideo.src=videoSrc;dom.lightboxVideo.classList.remove('hidden');dom.lightboxVideo.play();if(filename)playMedia(videoSrc,filename,'video')}else if(imgSrc){dom.lightboxImg.src=imgSrc;dom.lightboxImg.classList.remove('hidden')}dom.lightbox.classList.remove('hidden')}
-function closeLightbox(){dom.lightbox.classList.add('hidden');dom.lightboxVideo.pause();dom.lightboxVideo.src='';dom.lightboxImg.src=''}
-function initLightbox(){dom.lightboxClose.addEventListener('click',closeLightbox);dom.lightbox.addEventListener('click',e=>{if(e.target===dom.lightbox)closeLightbox()})}
+function openLightbox(imgSrc, videoSrc, filename, type) {
+    dom.lightboxImg.classList.add('hidden');
+    dom.lightboxVideo.classList.add('hidden');
+    if (videoSrc) {
+        if (type === 'audio') {
+            playMedia(videoSrc, filename, 'audio');
+        } else {
+            dom.lightboxVideo.src = videoSrc;
+            dom.lightboxVideo.classList.remove('hidden');
+            dom.lightbox.classList.remove('hidden');
+            dom.lightboxVideo.play();
+            if (dom.lightboxVideo.requestFullscreen) {
+                dom.lightboxVideo.requestFullscreen().catch(err => console.log(err));
+            } else if (dom.lightboxVideo.webkitRequestFullscreen) {
+                dom.lightboxVideo.webkitRequestFullscreen();
+            }
+        }
+    } else if (imgSrc) {
+        dom.lightboxImg.src = imgSrc;
+        dom.lightboxImg.classList.remove('hidden');
+        dom.lightbox.classList.remove('hidden');
+    }
+}
+function closeLightbox() {
+    dom.lightbox.classList.add('hidden');
+    dom.lightboxVideo.pause();
+    dom.lightboxVideo.src = '';
+    dom.lightboxImg.src = '';
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(e => {});
+    }
+}
+function initLightbox() {
+    dom.lightboxClose.addEventListener('click', closeLightbox);
+    dom.lightbox.addEventListener('click', e => {
+        if (e.target === dom.lightbox) closeLightbox();
+    });
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement && !dom.lightboxVideo.classList.contains('hidden')) {
+            closeLightbox();
+        }
+    });
+}
 
 // ═══ QR MODAL ═══
 function initQrModal(){dom.qrBtn.addEventListener('click',async()=>{dom.qrImg.src='/api/qr?'+Date.now();dom.modalUrl.textContent=serverUrl||window.location.origin;dom.qrModal.classList.remove('hidden')});dom.qrClose.addEventListener('click',()=>dom.qrModal.classList.add('hidden'));dom.qrModal.addEventListener('click',e=>{if(e.target===dom.qrModal)dom.qrModal.classList.add('hidden')});dom.modalUrl.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(dom.modalUrl.textContent);toast('URL copied','success')}catch(e){toast('Could not copy','error')}})}

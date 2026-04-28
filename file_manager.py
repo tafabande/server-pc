@@ -13,7 +13,7 @@ from PIL import Image
 import cv2
 import aiofiles
 from fastapi import UploadFile
-from config import SHARED_FOLDER, THUMB_DIR, THUMB_SIZE, ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
+from config import SHARED_FOLDER, THUMB_DIR, LOG_DIR, THUMB_SIZE, ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
 
 logger = logging.getLogger("streamdrop.files")
 
@@ -22,9 +22,10 @@ CHUNK_SIZE = 1024 * 1024
 
 
 def ensure_dirs():
-    """Create shared and thumbnail directories if they don't exist."""
+    """Create shared, thumbnail, and log directories if they don't exist."""
     SHARED_FOLDER.mkdir(parents=True, exist_ok=True)
     THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.info(f"📁 Shared folder: {SHARED_FOLDER}")
 
 
@@ -161,6 +162,8 @@ def _file_info(filepath: Path) -> dict:
         "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         "download_url": f"/api/download/{filepath.name}",
         "serve_url": f"/shared/{filepath.name}",
+        "playable": file_type in {"video", "audio"},
+        "stream_url": f"/api/stream/media/{filepath.name}" if file_type in {"video", "audio"} else None,
     }
 
     # Add thumbnail URL if available

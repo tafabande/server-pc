@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from config import HOST, PORT, SHARED_FOLDER, STATIC_DIR
+from config import HOST, PORT, SHARED_FOLDER, STATIC_DIR, LOG_DIR
 from security import (
     auth_middleware,
     verify_pin,
@@ -34,17 +34,33 @@ from streaming import stream_manager
 from file_manager import ensure_dirs, save_upload, list_files, delete_file
 from websocket_hub import ws_manager
 
-# ── Logging ─────────────────────────────────────────────
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s │ %(name)-24s │ %(levelname)-7s │ %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("streamdrop")
-
 # ── Ensure directories exist before app mount ───────────
 ensure_dirs()
+
+# ── Logging ─────────────────────────────────────────────
+import logging.handlers
+
+log_formatter = logging.Formatter(
+    fmt="%(asctime)s │ %(name)-24s │ %(levelname)-7s │ %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+
+# File handler
+file_handler = logging.handlers.RotatingFileHandler(
+    filename=LOG_DIR / "streamdrop.log",
+    maxBytes=5 * 1024 * 1024,  # 5 MB
+    backupCount=3,
+    encoding="utf-8"
+)
+file_handler.setFormatter(log_formatter)
+
+# Configure root logger
+logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
+logger = logging.getLogger("streamdrop")
 
 # ── State ───────────────────────────────────────────────
 
@@ -240,6 +256,69 @@ async def upload_file(file: UploadFile = File(...)):
         return {"status": "ok", "file": info}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/stream/media/{filename:path}")
+async def stream_media(filename: str, request: Request):
+    """
+    Byte-Range streaming endpoint for media files.
+    Allows instant scrubbing (seeking) in video files without loading into RAM.
+    """
+    filepath = (SHARED_FOLDER / filename).resolve()
+
+    # Path traversal check
+    if not str(filepath).startswith(str(SHARED_FOLDER)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_size = filepath.stat().st_size
+    range_header = request.headers.get("range")
+
+    start = 0
+    end = file_size - 1
+    status_code = 200
+
+    if range_header:
+        # Parse the range header, e.g. "bytes=0-1023" or "bytes=500-"
+        range_match = __import__("re").match(r"bytes=(\d+)-(\d*)", range_header)
+        if range_match:
+            start = int(range_match.group(1))
+            if range_match.group(2):
+                end = int(range_match.group(2))
+            status_code = 206
+
+    if start >= file_size or end >= file_size or start > end:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
+
+    chunk_size = 1024 * 1024  # 1MB chunks to keep RAM usage low (~20MB total with buffers)
+
+    def chunk_generator(file_path, start_byte, end_byte, chunk_size):
+        with open(file_path, "rb") as f:
+            f.seek(start_byte)
+            bytes_left = end_byte - start_byte + 1
+            while bytes_left > 0:
+                read_size = min(chunk_size, bytes_left)
+                chunk = f.read(read_size)
+                if not chunk:
+                    break
+                yield chunk
+                bytes_left -= len(chunk)
+
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(filename)
+    headers = {
+        "Content-Range": f"bytes {start}-{end}/{file_size}",
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(end - start + 1),
+        "Content-Type": content_type or "application/octet-stream",
+    }
+
+    return StreamingResponse(
+        chunk_generator(filepath, start, end, chunk_size),
+        status_code=status_code,
+        headers=headers,
+    )
 
 
 @app.get("/api/download/{filename:path}")
