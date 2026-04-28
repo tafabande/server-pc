@@ -105,6 +105,16 @@ class StreamManager:
         self._running = False
         self._lock = threading.Lock()
         self._frame_interval = 1.0 / STREAM_FPS
+        self._quality = JPEG_QUALITY  # Adaptive: mutable at runtime
+
+    @property
+    def quality(self) -> int:
+        return self._quality
+
+    @quality.setter
+    def quality(self, value: int):
+        self._quality = max(20, min(95, int(value)))
+        logger.info(f"📊 Quality set to {self._quality}")
 
     @property
     def is_running(self) -> bool:
@@ -156,9 +166,8 @@ class StreamManager:
         Generator that yields MJPEG frames.
         Designed to be used with FastAPI StreamingResponse.
         Uses a sync generator (FastAPI runs it in a threadpool).
+        Quality is read dynamically each frame for adaptive bitrate.
         """
-        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
-
         while self._running:
             frame_start = time.monotonic()
 
@@ -177,7 +186,15 @@ class StreamManager:
                 )
                 frame = placeholder
 
-            # Encode as JPEG
+            # Adaptive: downscale at very low quality for bandwidth savings
+            q = self._quality
+            if q < 40:
+                h, w = frame.shape[:2]
+                scale = 0.5 if q < 30 else 0.75
+                frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+
+            # Encode as JPEG with current adaptive quality
+            encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), q]
             ret, buffer = cv2.imencode(".jpg", frame, encode_params)
             if not ret:
                 continue
