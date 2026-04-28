@@ -41,3 +41,52 @@
 21:15:12 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:51666 (total: 2)
 21:15:13 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.35.7.182:35144 (total: 1)
 21:15:13 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.35.7.182:52432 (total: 0)
+22:08:10 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+22:08:21 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+22:08:21 │ streamdrop               │ INFO    │ ============================================================
+22:08:21 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+22:08:21 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+22:08:21 │ streamdrop               │ INFO    │    Network: http://10.36.55.5:8000
+22:08:21 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+22:08:21 │ streamdrop               │ INFO    │ ============================================================
+22:33:47 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+22:33:58 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+22:33:58 │ streamdrop               │ INFO    │ ============================================================
+22:33:58 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+22:33:58 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+22:33:58 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+22:33:58 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+22:33:58 │ streamdrop               │ INFO    │ ============================================================
+22:35:14 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:52146 (total: 1)
+22:39:08 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:52146 (total: 0)
+22:47:52 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:61154 (total: 1)
+22:53:07 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+22:53:17 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+22:53:17 │ streamdrop               │ INFO    │ ============================================================
+22:53:17 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+22:53:17 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+22:53:17 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+22:53:17 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+22:53:17 │ streamdrop               │ INFO    │ ============================================================
+22:53:28 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
+22:53:28 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.
+22:54:23 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+22:54:34 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+22:54:34 │ streamdrop               │ INFO    │ ============================================================
+22:54:34 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+22:54:34 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+22:54:34 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+22:54:34 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+22:54:34 │ streamdrop               │ INFO    │ ============================================================
+22:56:11 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:54443 (total: 1)
+22:56:45 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:54443 (total: 0)
+23:02:24 │ streamdrop.files         │ INFO    │ 📁 Shared folder: C:\Users\User\Desktop\server
+23:02:34 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+23:02:34 │ streamdrop               │ INFO    │ ============================================================
+23:02:34 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running!
+23:02:34 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+23:02:34 │ streamdrop               │ INFO    │    Network: http://10.233.51.189:8000
+23:02:34 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
+23:02:34 │ streamdrop               │ INFO    │ ============================================================
+23:02:45 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf cleanup error: 
+23:02:45 │ streamdrop               │ INFO    │ 👋 StreamDrop stopped.

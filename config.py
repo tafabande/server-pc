@@ -66,7 +66,7 @@ ALLOWED_EXTENSIONS = {
 
 # ── Thumbnails ─────────────────────────────────────────
 THUMB_SIZE = (200, 200)
-THUMB_DIR = SHARED_FOLDER / ".thumbs"
+THUMB_DIR = SHARED_FOLDER / "thumbs"
 
 # ── Service Discovery ─────────────────────────────────
 SERVICE_NAME = os.getenv("SERVICE_NAME", "StreamDrop")

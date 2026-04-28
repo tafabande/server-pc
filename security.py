@@ -60,6 +60,8 @@ PUBLIC_PREFIXES = (
     "/openapi",
     "/favicon",
     "/ws",
+    "/api/stream/media/",
+    "/shared/",
 )
 
 

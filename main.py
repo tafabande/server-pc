@@ -8,6 +8,7 @@ import time
 import socket
 import logging
 import asyncio
+import aiofiles
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request, WebSocket, WebSocketDisconnect, Query
@@ -319,13 +320,13 @@ async def stream_media(filename: str, request: Request):
 
     chunk_size = 1024 * 1024  # 1MB chunks to keep RAM usage low (~20MB total with buffers)
 
-    def chunk_generator(file_path, start_byte, end_byte, chunk_size):
-        with open(file_path, "rb") as f:
-            f.seek(start_byte)
+    async def chunk_generator(file_path, start_byte, end_byte, chunk_size):
+        async with aiofiles.open(file_path, mode="rb") as f:
+            await f.seek(start_byte)
             bytes_left = end_byte - start_byte + 1
             while bytes_left > 0:
                 read_size = min(chunk_size, bytes_left)
-                chunk = f.read(read_size)
+                chunk = await f.read(read_size)
                 if not chunk:
                     break
                 yield chunk

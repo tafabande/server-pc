@@ -169,7 +169,7 @@ def _file_info(filepath: Path) -> dict:
     # Add thumbnail URL if available
     thumb_path = THUMB_DIR / f"{filepath.stem}_thumb.jpg"
     if thumb_path.exists():
-        info["thumbnail_url"] = f"/shared/.thumbs/{filepath.stem}_thumb.jpg"
+        info["thumbnail_url"] = f"/shared/thumbs/{filepath.stem}_thumb.jpg"
     elif file_type == "image":
         info["thumbnail_url"] = info["serve_url"]
 
