@@ -1,10 +1,12 @@
 @echo off
-title StreamDrop — LAN Hub
+title StreamDrop - LAN Hub
+cd /d "%~dp0"
+
 echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║        StreamDrop — LAN Hub          ║
-echo  ║     Unified Stream ^& Share Server    ║
-echo  ╚══════════════════════════════════════╝
+echo  +--------------------------------------+
+echo  :        StreamDrop - LAN Hub          :
+echo  :     Unified Stream + Share Server    :
+echo  +--------------------------------------+
 echo.
 
 :: Auto-detect Python
@@ -16,9 +18,10 @@ where py >nul 2>&1 && (set PYTHON=py) || (
     )
 )
 
-:: Install deps if needed
+echo  [*] Checking dependencies...
 %PYTHON% -m pip install -r requirements.txt --quiet 2>nul
 
-:: Launch
+echo  [*] Starting StreamDrop...
+echo.
 %PYTHON% main.py
 pause
