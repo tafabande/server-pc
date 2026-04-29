@@ -1,13 +1,12 @@
-const CACHE_NAME = 'streamdrop-v2';
+const CACHE_NAME = 'streamdrop-v3';
 const ASSETS = [
     '/',
     '/static/index.html',
-    '/static/js/app.js',
-    '/static/css/m3.css',
+    '/static/js/app.js?v=2',
+    '/static/js/editor.js?v=2',
+    '/static/css/m3.css?v=2',
     '/static/img/icon-192.png',
     '/static/img/icon-512.png',
-    '/static/img/screenshot-mobile.png',
-    '/static/img/screenshot-desktop.png',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
     'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
 ];

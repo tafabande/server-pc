@@ -490,3 +490,31 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 16:35:24 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:54395 (total: 3)
 16:35:25 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:54395 (total: 2)
 16:35:37 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:58351 (total: 1)
+17:00:00 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+17:00:00 │ streamdrop               │ INFO    │ ============================================================
+17:00:00 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running (Modular Architecture)!
+17:00:00 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+17:00:00 │ streamdrop               │ INFO    │    Network: http://10.36.55.5:8000
+17:00:00 │ streamdrop               │ INFO    │ ============================================================
+17:00:00 │ streamdrop.compression   │ INFO    │ Compression worker started. Re-queuing pending jobs...
+17:00:02 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:64228 (total: 1)
+17:06:37 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:06:37 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:06:38 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:59620 (total: 2)
+17:08:54 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:08:54 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:10:10 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:10:10 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:12:08 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:64228 (total: 1)
+17:12:09 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:12:09 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:12:09 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:64836 (total: 2)
+17:13:09 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:59620 (total: 1)
+17:13:09 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:13:09 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:13:10 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:60911 (total: 2)
+17:18:47 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:60911 (total: 1)
+17:19:15 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+17:19:15 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+17:19:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:56433 (total: 2)
+17:27:00 │ streamdrop               │ INFO    │ 🛑 Shutdown requested from UI.

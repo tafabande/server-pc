@@ -43,6 +43,9 @@ class StreamDropApp {
         this.shutdownBtn = document.getElementById('shutdownBtn');
         this.streamToggleBtn = document.getElementById('streamToggleBtn');
         this.installAppBtn = document.getElementById('installAppBtn');
+        this.qrCodeBtn = document.getElementById('qrCodeBtn');
+        this.qrModal = document.getElementById('qr-modal');
+        this.closeQrBtn = document.getElementById('closeQrBtn');
 
         // PWA Install Prompt
         this.deferredPrompt = null;
@@ -50,6 +53,7 @@ class StreamDropApp {
         // New PWA Action Buttons
         this.favBtn = document.getElementById('fav-btn');
         this.favIcon = document.getElementById('fav-icon');
+        this.pipBtn = document.getElementById('pipBtn');
         this.downloadBtn = document.getElementById('downloadCurrentBtn');
         
         // Seek Feedback
@@ -219,6 +223,8 @@ class StreamDropApp {
 
         this.shutdownBtn.addEventListener('click', () => this.handleShutdown());
         this.streamToggleBtn.addEventListener('click', () => this.handleStreamToggle());
+        this.qrCodeBtn.addEventListener('click', () => this.showQRCode());
+        if (this.closeQrBtn) this.closeQrBtn.addEventListener('click', () => this.qrModal.classList.add('hidden'));
 
         // Overlay Controls
         this.closeStreamBtn.onclick = () => this.closeStream();
@@ -264,11 +270,18 @@ class StreamDropApp {
         this.nextBtn.addEventListener('click', () => this.playNext());
         this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         this.favBtn.addEventListener('click', () => this.toggleLocalFavorite());
+        this.pipBtn.addEventListener('click', () => this.togglePiP());
         this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
 
         // Video State
         this.video.addEventListener('ended', () => this.playNext());
         this.video.addEventListener('timeupdate', () => {
+            if (this.video.currentTime > 5) {
+                const currentVid = this.currentPlaylist[this.currentVideoIndex];
+                if (currentVid) {
+                    localStorage.setItem(`resume_${currentVid.filename}`, this.video.currentTime);
+                }
+            }
             if (this.video.duration) {
                 const percent = (this.video.currentTime / this.video.duration) * 100;
                 this.seekBar.value = percent;
@@ -435,13 +448,22 @@ class StreamDropApp {
         };
     }
 
-    async loadGallery(pushState = true) {
+    async loadGallery(pushState = true, pin = "") {
         let url = this.activeFilter === 'favorites' 
             ? '/api/favorites' 
             : `/api/files/${encodeURIComponent(this.currentPath)}`;
+            
+        if (pin && this.activeFilter !== 'favorites') url += `?pin=${pin}`;
 
         try {
             const response = await fetch(url);
+            
+            if (response.status === 401) {
+                const userPin = prompt("This folder is locked. Enter PIN:");
+                if (userPin) this.loadGallery(pushState, userPin);
+                return;
+            }
+            
             const data = await response.json();
             this.allFiles = data.items || [];
             this.visibleCount = this.itemsPerPage; // Reset scroll on new folder
@@ -725,6 +747,14 @@ class StreamDropApp {
 
         this.playerContainer.classList.remove('hidden');
         this.updateLocalFavIcon(item.filename);
+        
+        // Check local storage for resume time
+        const savedTime = localStorage.getItem(`resume_${item.filename}`);
+        if (savedTime) {
+            this.video.currentTime = parseFloat(savedTime);
+            this.showToast("Resumed from last played position");
+        }
+
         this.video.play().catch(e => console.error("Playback prevented:", e));
         this.resetIdleTimer();
     }
@@ -830,6 +860,19 @@ class StreamDropApp {
             if (screen.orientation && screen.orientation.unlock) {
                 screen.orientation.unlock();
             }
+        }
+    }
+
+    async togglePiP() {
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else if (document.pictureInPictureEnabled && this.video.readyState >= 2) {
+                await this.video.requestPictureInPicture();
+            }
+        } catch (error) {
+            console.error("PiP failed:", error);
+            this.showToast("PiP not supported on this device", true);
         }
     }
 
@@ -1179,6 +1222,26 @@ class StreamDropApp {
         } catch (e) {
             console.error("Failed to close stream:", e);
         }
+    }
+
+    showQRCode() {
+        const qrContainer = document.getElementById("qrcode");
+        qrContainer.innerHTML = ""; // Clear old code
+
+        if (typeof QRCode === 'undefined') {
+            console.error("QRCode library not loaded");
+            return;
+        }
+
+        new QRCode(qrContainer, {
+            text: window.location.origin,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff"
+        });
+
+        this.qrModal.classList.remove('hidden');
     }
 
     // --- File Management ---

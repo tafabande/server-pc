@@ -26,9 +26,21 @@ class FolderOptimizationRequest(BaseModel):
 
 @router.get("/files")
 @router.get("/files/{path:path}")
-async def get_files(path: str = ""):
+async def get_files(path: str = "", pin: str = Query(None)):
     from urllib.parse import unquote
     decoded_path = unquote(path)
+    
+    target_path = (SHARED_FOLDER / decoded_path).resolve()
+    
+    # --- THE LOCK CHECK ---
+    if target_path.is_dir():
+        lock_file = target_path / ".lock"
+        if lock_file.exists():
+            with open(lock_file, "r") as f:
+                required_pin = f.read().strip()
+            if pin != required_pin:
+                raise HTTPException(status_code=401, detail="Locked")
+                
     return {"items": list_files(decoded_path)}
 
 @router.get("/favorites")
