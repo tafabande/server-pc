@@ -246,4 +246,4 @@ class ConnectionManager:
 
 
 # ── Module-level singleton ──────────────────────────────
-ws_manager = ConnectionManager()
+manager = ConnectionManager()

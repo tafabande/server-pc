@@ -16,8 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from db.models import PlayEvent, PlayEventType, MediaMetadata, User
+from core.database import get_db, PlayEvent, PlayEventType, MediaMetadata, User
 from auth.rbac import get_current_user, require_role, UserContext
 
 logger = logging.getLogger("streamdrop.media_api")
@@ -29,6 +28,7 @@ router = APIRouter(prefix="/api/media", tags=["Media Analytics"])
 class PlayEventRequest(BaseModel):
     media_path: str = Field(..., description="Relative path of the media file")
     event_type: PlayEventType = PlayEventType.play
+    position: float = Field(0.0, description="Resume position in seconds")
 
 
 class TranscodeRequest(BaseModel):
@@ -58,6 +58,7 @@ async def log_event(
         media_id=media_id,
         media_path=body.media_path,
         event_type=body.event_type,
+        resume_position_seconds=body.position,
     )
     db.add(event)
     # Commit is handled by get_db dependency
@@ -171,8 +172,10 @@ async def trigger_transcode(body: TranscodeRequest):
         raise HTTPException(status_code=404, detail="File not found.")
 
     try:
-        from workers.hls_worker import transcode_to_hls
-        transcode_to_hls.delay(body.rel_path, abs_path)
-        return {"status": "ok", "message": f"Transcode job queued for: {body.rel_path}"}
+        from core.workers import transcode_to_hls
+        # Run in background via asyncio
+        import asyncio
+        asyncio.create_task(transcode_to_hls(body.rel_path))
+        return {"status": "ok", "message": f"Transcode started for: {body.rel_path}"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Celery unavailable: {e}")
+        raise HTTPException(status_code=500, detail=f"Transcode failed to start: {e}")

@@ -165,7 +165,7 @@ async def _probe_and_store(rel_path: str, abs_path: str):
     """Core logic: probe + upsert MediaMetadata row."""
     from sqlalchemy import select
     from core.database import AsyncSessionFactory
-    from db.models import MediaMetadata
+    from core.database import MediaMetadata
 
     path = Path(abs_path)
     if not path.exists():
@@ -205,7 +205,7 @@ async def _probe_all_pending():
     """Find all media files missing metadata and dispatch probe tasks."""
     from sqlalchemy import select
     from core.database import AsyncSessionFactory
-    from db.models import MediaMetadata
+    from core.database import MediaMetadata
     from config import SHARED_FOLDER
     from file_manager import _get_file_type
 

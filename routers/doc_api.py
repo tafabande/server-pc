@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import SHARED_FOLDER
 from core.database import get_db, log_audit
-from core.websocket_manager import ws_manager
+from core.websockets import manager
 from auth.rbac import get_current_user, require_role, guest_path_check, UserContext
 
 logger = logging.getLogger("streamdrop.doc_api")
@@ -76,12 +76,12 @@ async def write_doc(
     await log_audit(
         db=db,
         user_id=user.user_id,
-        ip_address=ip_address,
-        action="Edited",
-        resource=filename,
+        action_type="DOC_EDIT",
+        target_resource=filename,
+        details={"ip": ip_address, "size": len(body.content)}
     )
     
     # Broadcast update
-    await ws_manager.broadcast({"type": "update"})
+    await manager.broadcast({"type": "update"})
         
     return {"status": "ok", "message": "Document saved successfully"}

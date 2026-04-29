@@ -18,8 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from db.models import User, UserRole
+from core.database import get_db, User, UserRole, log_audit
 from auth.jwt_handler import create_user_token, set_auth_cookie, clear_auth_cookie, COOKIE_NAME
 from auth.redis_client import store_session, invalidate_session, invalidate_all_user_sessions
 from auth.rbac import get_current_user, require_role, UserContext
@@ -75,7 +74,7 @@ class UserResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("")
-async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """
     Authenticate with username + password.
     Returns a JWT stored in an HttpOnly cookie (no token in body for XSS safety).
@@ -99,6 +98,14 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
 
     # Set HttpOnly cookie
     set_auth_cookie(response, token)
+
+    # Log Audit
+    await log_audit(
+        db=db,
+        user_id=user.id,
+        action_type="LOGIN",
+        details={"ip": request.client.host if request.client else "unknown"}
+    )
 
     logger.info(f"✅ Login: user={user.username} role={user.role.value}")
     return {

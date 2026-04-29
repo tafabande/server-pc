@@ -38,8 +38,8 @@ from routers.auth_api import router as auth_router
 from routers.media_api import router as media_router
 
 # Core & Workers
-from core.websocket_manager import ws_manager
-from workers.compression import start_worker as start_compression_worker
+from core.websockets import manager
+from core.workers import transcode_to_hls
 from streaming import stream_manager
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -100,8 +100,7 @@ async def _seed_admin_user():
     This runs once on startup. After the first run, the env vars are ignored.
     """
     from sqlalchemy import select, func
-    from core.database import AsyncSessionFactory
-    from db.models import User, UserRole
+    from core.database import AsyncSessionFactory, User, UserRole
     from routers.auth_api import hash_password
     from config import ADMIN_USERNAME, ADMIN_PASSWORD
 
@@ -132,7 +131,7 @@ async def lifespan(app: FastAPI):
     await _seed_admin_user()
 
     _discovery.register()
-    start_compression_worker()
+    # start_compression_worker() # Disabled in favor of core.workers
 
     ip = get_local_ip()
     url = get_server_url(ip)
@@ -195,7 +194,6 @@ async def root():
 async def get_manifest():
     return FileResponse(STATIC_DIR / "manifest.json", media_type="application/manifest+json")
 
-
 @app.get("/sw.js", include_in_schema=False)
 async def get_sw():
     return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
@@ -218,7 +216,7 @@ async def status():
             "mode": stream_manager.mode,
             "quality": stream_manager.quality,
         },
-        "connections": ws_manager.client_count,
+        "connections": manager.client_count,
     }
 
 
@@ -234,7 +232,7 @@ async def qr_code():
 async def metrics():
     """Prometheus scrape endpoint. Listed in PUBLIC_PREFIXES so no auth needed."""
     # Update live gauges
-    ACTIVE_CONNECTIONS.set(ws_manager.client_count)
+    ACTIVE_CONNECTIONS.set(manager.client_count)
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -243,17 +241,17 @@ async def metrics():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(default="")):
     try:
-        await ws_manager.connect(websocket)
-        ACTIVE_CONNECTIONS.set(ws_manager.client_count)
+        await manager.connect(websocket)
+        ACTIVE_CONNECTIONS.set(manager.client_count)
         while True:
             data = await websocket.receive_json()
-            await ws_manager.handle_message(websocket, data)
+            await manager.handle_message(websocket, data)
     except WebSocketDisconnect:
-        await ws_manager.disconnect(websocket)
-        ACTIVE_CONNECTIONS.set(ws_manager.client_count)
+        await manager.disconnect(websocket)
+        ACTIVE_CONNECTIONS.set(manager.client_count)
     except Exception:
-        await ws_manager.disconnect(websocket)
-        ACTIVE_CONNECTIONS.set(ws_manager.client_count)
+        await manager.disconnect(websocket)
+        ACTIVE_CONNECTIONS.set(manager.client_count)
 
 
 # ── Clipboard ──────────────────────────────────────────────────────────────────
@@ -267,13 +265,13 @@ class ClipboardRequest(BaseModel):
 
 @app.get("/api/clipboard")
 async def get_clipboard():
-    return {"text": ws_manager.clipboard_text}
+    return {"text": manager.clipboard_text}
 
 
 @app.post("/api/clipboard")
 async def set_clipboard(body: ClipboardRequest):
-    ws_manager.clipboard_text = body.text
-    await ws_manager.broadcast({"type": "clipboard", "text": body.text, "source": "api"})
+    manager.clipboard_text = body.text
+    await manager.broadcast({"type": "clipboard", "text": body.text, "source": "api"})
     return {"status": "ok", "text": body.text}
 
 

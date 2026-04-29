@@ -15,7 +15,7 @@ Usage:
 import logging
 from fastapi import Depends, HTTPException, Request, status
 
-from db.models import UserRole
+from core.database import UserRole
 
 logger = logging.getLogger("streamdrop.rbac")
 

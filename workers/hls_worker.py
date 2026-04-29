@@ -100,7 +100,7 @@ async def _transcode(rel_path: str, abs_path: str | None):
     from config import SHARED_FOLDER
     from sqlalchemy import select
     from core.database import AsyncSessionFactory
-    from db.models import MediaMetadata
+    from core.database import MediaMetadata
 
     if abs_path is None:
         abs_path = str((SHARED_FOLDER / rel_path).resolve())

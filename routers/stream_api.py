@@ -16,8 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import SHARED_FOLDER, TRANSCODE_DIR
-from core.database import get_db
-from db.models import MediaMetadata
+from core.database import get_db, MediaMetadata
 from streaming import stream_manager
 from auth.rbac import get_current_user, require_role, UserContext
 
@@ -69,7 +68,7 @@ async def stream_toggle():
 @router.get("/hls/{filename:path}/{segment:path}")
 async def hls_stream(filename: str, segment: str):
     """Serve HLS playlists and .ts segments from the isolated TRANSCODE_DIR."""
-    from workers.hls_worker import _get_hls_output_dir
+    from core.workers import _get_hls_output_dir
     hls_dir = _get_hls_output_dir(filename)
 
     segment_path = (hls_dir / segment).resolve()

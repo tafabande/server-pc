@@ -8,10 +8,10 @@ echo +--------------------------------------+
 echo.
 echo [*] Installing requirements...
 "%PYTHON_EXE%" -m pip install pyinstaller
-echo [*] Building single-file executable...
-"%PYTHON_EXE%" -m pyinstaller --noconfirm --onefile --add-data "static;static" --name "StreamDrop" main.py
+echo [*] Building professional directory package...
+"%PYTHON_EXE%" -m pyinstaller --noconfirm --onedir --windowed --noconsole --add-data "static;static" --name "MediaHub" server_manager.py
 echo.
 echo [*] Build Complete! 
-echo [*] You can find StreamDrop.exe in the 'dist' folder.
-echo [*] Copy StreamDrop.exe to any folder you want to host and run it!
+echo [*] You can find the MediaHub/ directory in the 'dist' folder.
+echo [*] IMPORTANT: Ensure you copy the .env file into 'dist/MediaHub/' before distribution.
 pause

@@ -18,11 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from config import SHARED_FOLDER
-from core.database import get_db, get_folder_optimization, set_folder_optimization
-from db.models import MediaMetadata
+from core.database import get_db, get_folder_optimization, set_folder_optimization, MediaMetadata, log_audit
 from file_manager import save_upload, list_files, delete_file, get_or_generate_thumbnail, rename_item
 from favorites_manager import list_favorites_details, toggle_favorite
-from core.websocket_manager import ws_manager
+from core.websockets import manager
 from auth.rbac import get_current_user, require_role, guest_path_check, UserContext
 
 logger = logging.getLogger("streamdrop.file_api")
@@ -149,23 +148,17 @@ async def upload_file(
                 probe_file_async(info["filename"], str((SHARED_FOLDER / info["filename"]).resolve()))
             )
 
-        # Check if folder has optimization (HLS transcode) enabled
         if info["type"] == "video":
             folder_path = Path(info["filename"]).parent.as_posix()
             if folder_path == ".":
                 folder_path = ""
             if get_folder_optimization(folder_path):
-                try:
-                    from workers.hls_worker import transcode_to_hls
-                    transcode_to_hls.delay(
-                        info["filename"],
-                        str((SHARED_FOLDER / info["filename"]).resolve()),
-                    )
-                    logger.info(f"📤 Queued HLS transcode: {info['name']}")
-                except Exception as e:
-                    logger.warning(f"Celery unavailable, skipping transcode: {e}")
+                from core.workers import transcode_to_hls
+                asyncio.create_task(transcode_to_hls(info["filename"]))
+                logger.info(f"📤 Started HLS transcode: {info['name']}")
 
-        await ws_manager.broadcast({"type": "update"})
+        await log_audit(db, "FILE_UPLOAD", target_resource=info["filename"], user_id=user.user_id if hasattr(user, 'user_id') else None)
+        await manager.broadcast({"type": "update"})
         return {"status": "ok", "file": info}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -223,12 +216,18 @@ async def download_file(
 # ── Delete ─────────────────────────────────────────────────────────────────────
 
 @router.delete("/files/{filename:path}", dependencies=[Depends(require_role("admin"))])
-async def remove_file(filename: str):
+async def remove_file(
+    filename: str,
+    user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     try:
         deleted = delete_file(filename)
         if not deleted:
             raise HTTPException(status_code=404, detail="File not found")
-        await ws_manager.broadcast({"type": "update"})
+        
+        await log_audit(db, "FILE_DELETE", target_resource=filename, user_id=user.user_id)
+        await manager.broadcast({"type": "update"})
         return {"status": "ok", "deleted": filename}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -237,10 +236,11 @@ async def remove_file(filename: str):
 # ── Rename ─────────────────────────────────────────────────────────────────────
 
 @router.patch("/files/{filename:path}", dependencies=[Depends(require_role("admin", "family"))])
-async def rename_file_endpoint(filename: str, body: RenameRequest):
+async def rename_file_endpoint(filename: str, body: RenameRequest, user: UserContext = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
         info = rename_item(filename, body.new_name)
-        await ws_manager.broadcast({"type": "update"})
+        await log_audit(db, "FILE_RENAME", target_resource=filename, details={"to": body.new_name}, user_id=user.user_id)
+        await manager.broadcast({"type": "update"})
         return {"status": "ok", "file": info}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
