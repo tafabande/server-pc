@@ -271,6 +271,34 @@
         </div>
     </div>
 
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="hidden" style="position: fixed; inset: 0; background: var(--m3-surface); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div class="login-card" style="width: 100%; max-width: 400px; padding: 32px; background: var(--surface-container); border-radius: 28px; display: flex; flex-direction: column; gap: 24px;">
+            <div style="text-align: center;">
+                <span class="material-symbols-rounded" style="font-size: 48px; color: var(--primary);">water_drop</span>
+                <h1 style="margin-top: 16px; font-size: 24px; font-weight: 500;">Welcome to StreamDrop</h1>
+                <p style="color: var(--on-surface-variant); margin-top: 8px;">Please sign in to continue</p>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="input-group">
+                    <input type="text" id="login-username" placeholder="Username" style="width: 100%; padding: 16px; border-radius: 12px; border: 1px solid var(--outline); background: transparent; color: var(--on-surface);">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="login-password" placeholder="Password" style="width: 100%; padding: 16px; border-radius: 12px; border: 1px solid var(--outline); background: transparent; color: var(--on-surface);">
+                </div>
+            </div>
+
+            <button id="login-btn" style="width: 100%; padding: 16px; border-radius: 28px; border: none; background: var(--primary); color: var(--on-primary); font-weight: 600; cursor: pointer; font-size: 16px;">
+                Sign In
+            </button>
+            
+            <div id="login-error" style="color: var(--error); text-align: center; font-size: 14px; display: none;">
+                Invalid username or password
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.quilljs.com/1.3.7/quill.min.js" async></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" async></script>

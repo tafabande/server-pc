@@ -1,0 +1,186 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0"}
+  ],
+  "annotations": {"list": []},
+  "description": "StreamDrop — System metrics and Netflix-style media analytics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 5},
+            {"color": "red", "value": 20}
+          ]},
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Active WebSocket Connections",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus"},
+          "expr": "streamdrop_active_ws_connections",
+          "legendFormat": "Connections"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Play Events / min",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus"},
+          "expr": "rate(streamdrop_play_events_total[1m]) * 60",
+          "legendFormat": "Events/min"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Total Upload Volume",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus"},
+          "expr": "streamdrop_upload_bytes_total",
+          "legendFormat": "Bytes"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Stream Latency p95",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus"},
+          "expr": "histogram_quantile(0.95, rate(streamdrop_stream_latency_seconds_bucket[5m]))",
+          "legendFormat": "p95 latency"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 5,
+      "title": "Play Events Over Time (by Type)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus"},
+          "expr": "rate(streamdrop_play_events_total[5m]) * 300",
+          "legendFormat": "{{event_type}}"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRESQL}"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 6,
+      "title": "Most Watched by Role (Netflix-style)",
+      "type": "table",
+      "options": {"sortBy": [{"displayName": "Play Count", "desc": true}]},
+      "targets": [
+        {
+          "datasource": {"type": "postgres"},
+          "rawSql": "SELECT COALESCE(u.role::text, 'guest') as \"Role\", pe.media_path as \"File\", COUNT(pe.id) as \"Play Count\" FROM play_events pe LEFT JOIN users u ON pe.user_id = u.id WHERE pe.event_type = 'play' GROUP BY u.role, pe.media_path ORDER BY \"Play Count\" DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRESQL}"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 7,
+      "title": "Top 10 Most Watched Files",
+      "type": "barchart",
+      "options": {"orientation": "horizontal"},
+      "targets": [
+        {
+          "datasource": {"type": "postgres"},
+          "rawSql": "SELECT pe.media_path as \"File\", COUNT(pe.id) as \"Plays\" FROM play_events pe WHERE pe.event_type = 'play' GROUP BY pe.media_path ORDER BY \"Plays\" DESC LIMIT 10",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRESQL}"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 8,
+      "title": "Unique Active Users (Last 24h)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {"type": "postgres"},
+          "rawSql": "SELECT COUNT(DISTINCT user_id) as \"Users\" FROM play_events WHERE timestamp > NOW() - INTERVAL '24 hours'",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["streamdrop", "media", "analytics"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_POSTGRESQL",
+        "options": [],
+        "query": "postgres",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "StreamDrop — Media Analytics",
+  "uid": "streamdrop-main",
+  "version": 1
+}

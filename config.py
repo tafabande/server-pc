@@ -6,6 +6,7 @@ Supports both normal Python and PyInstaller frozen (.exe) mode.
 
 import os
 import sys
+import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -24,6 +25,13 @@ SHARED_FOLDER = Path(
 ).expanduser().resolve()
 LOG_DIR = SHARED_FOLDER / ".logs"
 
+# HLS / transcode cache — kept SEPARATE from media root so
+# SHARED_FOLDER can be mounted read-only in Docker.
+# Wiping this dir clears all HLS caches without touching source media.
+TRANSCODE_DIR = Path(
+    os.getenv("TRANSCODE_DIR", str(BASE_DIR / ".cache" / "transcodes"))
+).expanduser().resolve()
+
 # Static files: bundled inside the exe via PyInstaller _MEIPASS
 if getattr(sys, 'frozen', False):
     _BUNDLE_DIR = Path(sys._MEIPASS)
@@ -35,9 +43,40 @@ else:
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# ── Security ───────────────────────────────────────────
+# ── Authentication ─────────────────────────────────────
+# Legacy PIN (kept for backwards-compat during transition)
 PIN = os.getenv("PIN", "1234")
-SESSION_EXPIRY_HOURS = int(os.getenv("SESSION_EXPIRY_HOURS", "24"))
+
+# Admin credentials — used to seed the first admin user on startup
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+
+# JWT signing secret — auto-generate a strong one if not set in .env
+JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_urlsafe(64))
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
+
+SESSION_EXPIRY_HOURS = JWT_EXPIRE_HOURS  # alias for legacy code
+
+# RBAC path restriction for guest role
+# Guests are confined to this subpath of SHARED_FOLDER (default: no restriction)
+GUEST_ROOT_PATH = os.getenv("GUEST_ROOT_PATH", "")
+
+# ── Database ───────────────────────────────────────────
+# Default: async SQLite for local dev. Override with PostgreSQL DSN for prod.
+# Example: postgresql+asyncpg://user:pass@postgres:5432/streamdrop
+_DATA_DIR = SHARED_FOLDER / ".data"
+_DATA_DIR.mkdir(exist_ok=True, parents=True)
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite+aiosqlite:///{_DATA_DIR / 'streamdrop.db'}"
+)
+
+# ── Redis ──────────────────────────────────────────────
+# Used for multi-instance session sync and Celery broker/backend.
+# Falls back to in-memory dict if Redis is unreachable (dev mode).
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # ── Streaming ──────────────────────────────────────────
 JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "75"))

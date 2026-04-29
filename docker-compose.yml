@@ -1,0 +1,152 @@
+version: "3.9"
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  pgdata:          # PostgreSQL data persistence
+  redisdata:       # Redis AOF/RDB persistence
+  mediafiles:      # Source media — mounted READ-ONLY to web/worker (safety net)
+  transcodes:      # HLS transcode cache — separate from media root
+  grafana_data:    # Grafana state (users, alerts, but NOT dashboards — those are code)
+
+# ── Services ───────────────────────────────────────────────────────────────────
+services:
+
+  # ── FastAPI Web App (2 replicas for multi-instance validation) ──────────────
+  web:
+    build: .
+    image: streamdrop:latest
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://streamdrop:streamdrop@postgres:5432/streamdrop
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set in .env}
+      SHARED_FOLDER: /shared
+      TRANSCODE_DIR: /transcodes
+      GUEST_ROOT_PATH: ${GUEST_ROOT_PATH:-}
+      HOST: 0.0.0.0
+      PORT: 8000
+    volumes:
+      - mediafiles:/shared:ro          # READ-ONLY: protects source media
+      - transcodes:/transcodes:rw      # HLS output (read-write)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Celery Worker (HLS encoding + ffprobe) ──────────────────────────────────
+  worker:
+    build: .
+    image: streamdrop:latest
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      DATABASE_URL: postgresql+asyncpg://streamdrop:streamdrop@postgres:5432/streamdrop
+      REDIS_URL: redis://redis:6379/0
+      SHARED_FOLDER: /shared
+      TRANSCODE_DIR: /transcodes
+    volumes:
+      - mediafiles:/shared:ro          # READ-ONLY: worker only reads source files
+      - transcodes:/transcodes:rw      # Worker writes HLS output here
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # ── Celery Beat (periodic tasks: re-probe, cleanup) ─────────────────────────
+  beat:
+    build: .
+    image: streamdrop:latest
+    restart: unless-stopped
+    command: celery -A workers.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://streamdrop:streamdrop@postgres:5432/streamdrop
+      REDIS_URL: redis://redis:6379/0
+      SHARED_FOLDER: /shared
+      TRANSCODE_DIR: /transcodes
+    volumes:
+      - mediafiles:/shared:ro
+    depends_on:
+      - redis
+      - postgres
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: streamdrop
+      POSTGRES_PASSWORD: streamdrop
+      POSTGRES_DB: streamdrop
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"    # Expose for local psql access / Grafana datasource
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamdrop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (session sync + Celery broker) ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes    # Enable AOF persistence
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus (metrics collection) ────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+
+  # ── Grafana (dashboards + analytics) ───────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/streamdrop.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Provisioned as code — dashboards and datasources configured on first boot
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - postgres

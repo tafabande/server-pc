@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # StreamDrop FastAPI metrics
+  - job_name: "streamdrop"
+    static_configs:
+      - targets:
+          - "web:8000"    # Docker service name
+        labels:
+          service: "streamdrop-web"
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

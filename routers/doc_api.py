@@ -1,18 +1,37 @@
+"""
+StreamDrop — Document Editor API Router
+Handles reading and writing text/markdown documents for the Quill editor.
+
+RBAC enforcement:
+  - GET: all authenticated users (guest check for path)
+  - POST: admin + family
+"""
+
+import logging
 import aiofiles
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from config import SHARED_FOLDER
-from core.database import log_audit
-from core.websocket_manager import ws_manager
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import SHARED_FOLDER
+from core.database import get_db, log_audit
+from core.websocket_manager import ws_manager
+from auth.rbac import get_current_user, require_role, guest_path_check, UserContext
+
+logger = logging.getLogger("streamdrop.doc_api")
 router = APIRouter(prefix="/api/docs", tags=["Docs"])
+
 
 class SaveDocRequest(BaseModel):
     content: str
 
+
 @router.get("/{filename:path}")
-async def read_doc(filename: str):
+async def read_doc(
+    filename: str,
+    user: UserContext = Depends(guest_path_check),
+):
     """Read raw text of a document for the Quill editor."""
     filepath = (SHARED_FOLDER / filename).resolve()
 
@@ -30,9 +49,16 @@ async def read_doc(filename: str):
         
     return {"content": content, "filename": filename}
 
-@router.post("/{filename:path}")
-async def write_doc(filename: str, request: SaveDocRequest, req: Request):
-    """Write text back to document and log to SQLite."""
+
+@router.post("/{filename:path}", dependencies=[Depends(require_role("admin", "family"))])
+async def write_doc(
+    filename: str, 
+    body: SaveDocRequest, 
+    req: Request,
+    user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Write text back to document and log to audit trail."""
     filepath = (SHARED_FOLDER / filename).resolve()
 
     if not str(filepath).startswith(str(SHARED_FOLDER)):
@@ -43,11 +69,17 @@ async def write_doc(filename: str, request: SaveDocRequest, req: Request):
         raise HTTPException(status_code=400, detail="Only .txt and .md files are supported for inline editing")
 
     async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
-        await f.write(request.content)
+        await f.write(body.content)
         
     # Log the audit trail
     ip_address = req.client.host if req.client else "unknown"
-    log_audit(ip_address, filename, "Edited")
+    await log_audit(
+        db=db,
+        user_id=user.user_id,
+        ip_address=ip_address,
+        action="Edited",
+        resource=filename,
+    )
     
     # Broadcast update
     await ws_manager.broadcast({"type": "update"})

@@ -88,6 +88,13 @@ class StreamDropApp {
         this.folderSettings = document.getElementById('folderSettings');
         this.optimizeFolderToggle = document.getElementById('optimizeFolderToggle');
 
+        // Login UI
+        this.loginOverlay = document.getElementById('login-overlay');
+        this.loginUsername = document.getElementById('login-username');
+        this.loginPassword = document.getElementById('login-password');
+        this.loginBtn = document.getElementById('login-btn');
+        this.loginError = document.getElementById('login-error');
+
         this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
 
         this.hlsPlayer = null;
@@ -260,6 +267,14 @@ class StreamDropApp {
                 } catch (err) {
                     console.error('Failed to update folder settings:', err);
                 }
+            });
+        }
+
+        // Login
+        if (this.loginBtn) {
+            this.loginBtn.addEventListener('click', () => this.handleLogin());
+            this.loginPassword.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.handleLogin();
             });
         }
     }
@@ -473,10 +488,11 @@ class StreamDropApp {
             const response = await fetch(url);
             
             if (response.status === 401) {
-                const userPin = prompt("This folder is locked. Enter PIN:");
-                if (userPin) this.loadGallery(pushState, userPin);
+                this.loginOverlay.classList.remove('hidden');
                 return;
             }
+            
+            this.loginOverlay.classList.add('hidden'); // Hide if successful
             
             const data = await response.json();
             this.allFiles = data.items || [];
@@ -494,6 +510,34 @@ class StreamDropApp {
             this.updateFolderSettings();
         } catch (error) {
             console.error("Failed to load gallery:", error);
+        }
+    }
+
+    async handleLogin() {
+        const username = this.loginUsername.value;
+        const password = this.loginPassword.value;
+
+        if (!username || !password) return;
+
+        try {
+            const response = await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                this.loginError.style.display = 'none';
+                this.loginOverlay.classList.add('hidden');
+                await this.loadGallery();
+                this.showToast(`Logged in as ${username}`);
+            } else {
+                this.loginError.style.display = 'block';
+            }
+        } catch (err) {
+            console.error('Login failed:', err);
+            this.loginError.style.display = 'block';
+            this.loginError.innerText = 'Connection error';
         }
     }
 
