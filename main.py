@@ -151,23 +151,26 @@ class ClipboardRequest(BaseModel):
 class FavoriteRequest(BaseModel):
     filename: str
 
+class RenameRequest(BaseModel):
+    new_name: str
+
 
 # ── Routes: Root ────────────────────────────────────────
 
 @app.get("/", include_in_schema=False)
 async def root():
-    """Redirect to the dashboard."""
-    return RedirectResponse(url="/static/index.html")
+    """Serve the dashboard directly (best for PWA)."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/manifest.json", include_in_schema=False)
 async def get_manifest():
-    return FileResponse(STATIC_DIR / "manifest.json")
+    return FileResponse(STATIC_DIR / "manifest.json", media_type="application/manifest+json")
 
 
 @app.get("/sw.js", include_in_schema=False)
 async def get_sw():
-    return FileResponse(STATIC_DIR / "sw.js")
+    return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
 
 
 # ── Routes: Auth ────────────────────────────────────────
@@ -440,6 +443,21 @@ async def remove_file(filename: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.patch("/api/files/{filename:path}")
+async def rename_file(filename: str, body: RenameRequest):
+    """Rename a file or directory."""
+    try:
+        from file_manager import rename_item
+        info = rename_item(filename, body.new_name)
+        # Broadcast update signal to all WebSocket clients
+        await ws_manager.broadcast_update()
+        return {"status": "ok", "file": info}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ── Routes: Clipboard ──────────────────────────────────
 
 @app.get("/api/clipboard")
@@ -491,7 +509,7 @@ def _kill_process_on_port(port: int):
     try:
         if os.name == 'nt':
             result = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True).decode()
-            for line in result.strip().split('\\n'):
+            for line in result.strip().split('\n'):
                 parts = line.strip().split()
                 if len(parts) >= 5 and parts[1].endswith(f":{port}"):
                     pid = parts[-1]

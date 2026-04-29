@@ -153,7 +153,7 @@ class StreamManager:
         self._webcam = WebcamStreamer()
         self._screen = ScreenStreamer()
         self._audio = AudioStreamer()
-        self._active_mode = "webcam"  # "webcam" or "screen"
+        self._active_mode = "screen"  # "webcam" or "screen"
         self._running = False
         self._lock = threading.Lock()
         self._frame_interval = 1.0 / STREAM_FPS

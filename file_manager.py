@@ -21,6 +21,7 @@ logger = logging.getLogger("streamdrop.files")
 
 # Chunk size for reading uploads (1 MB)
 CHUNK_SIZE = 1024 * 1024
+SUBTITLE_EXTENSIONS = {".vtt", ".srt"}
 
 
 def ensure_dirs():
@@ -234,6 +235,7 @@ def _file_info(filepath: Path, favorites: list[str] = None) -> dict:
         "serve_url": f"/shared/{rel_path}",
         "playable": file_type in {"video", "audio"},
         "stream_url": f"/api/stream/media/{rel_path}" if file_type in {"video", "audio"} else None,
+        "subtitles_url": None,
         "is_dir": False,
         "is_favorite": is_favorite
     }
@@ -243,6 +245,15 @@ def _file_info(filepath: Path, favorites: list[str] = None) -> dict:
         info["thumbnail_url"] = f"/api/thumbnail/{rel_path}"
     else:
         info["thumbnail_url"] = None
+
+    # Subtitle detection
+    if file_type == "video":
+        for ext in SUBTITLE_EXTENSIONS:
+            sub_file = filepath.with_suffix(ext)
+            if sub_file.exists():
+                sub_rel_path = sub_file.relative_to(SHARED_FOLDER).as_posix()
+                info["subtitles_url"] = f"/shared/{sub_rel_path}"
+                break
 
     return info
 
@@ -370,3 +381,70 @@ def delete_file(filename: str) -> bool:
 
     logger.info(f"🗑️ Deleted: {rel_path}")
     return True
+
+
+def rename_item(rel_path: str, new_name: str) -> dict:
+    """
+    Rename a file or directory in the shared folder.
+    Returns the updated file info.
+    """
+    old_path = (SHARED_FOLDER / rel_path).resolve()
+    
+    # Path traversal check
+    if not str(old_path).startswith(str(SHARED_FOLDER)):
+        raise ValueError("Invalid file path")
+    
+    if not old_path.exists():
+        raise FileNotFoundError(f"Item not found: {rel_path}")
+    
+    # Sanitize new name but keep extension if it's a file
+    new_name = sanitize_filename(new_name)
+    if old_path.is_file():
+        # Ensure we don't strip the new extension if the user provided one, 
+        # or keep the old one if they didn't.
+        if not Path(new_name).suffix:
+            new_name += old_path.suffix
+            
+    new_path = old_path.parent / new_name
+    
+    if new_path.exists():
+        raise ValueError(f"An item with the name '{new_name}' already exists.")
+    
+    # Also handle thumbnail rename/move if it's a file
+    if old_path.is_file():
+        old_rel = old_path.relative_to(SHARED_FOLDER).as_posix()
+        old_hash = hashlib.md5(old_rel.encode()).hexdigest()
+        old_thumb = THUMB_DIR / f"{old_hash}.jpg"
+        
+        old_path.rename(new_path)
+        
+        # New thumbnail hash will be different, so just delete the old one
+        if old_thumb.exists():
+            old_thumb.unlink()
+    else:
+        old_path.rename(new_path)
+        
+    logger.info(f"📝 Renamed: {rel_path} -> {new_path.relative_to(SHARED_FOLDER).as_posix()}")
+    
+    # Return info for the new path
+    if new_path.is_file():
+        return _file_info(new_path)
+    else:
+        # Folder info
+        favorites = []
+        try:
+            from favorites_manager import load_favorites
+            favorites = load_favorites()
+        except: pass
+        
+        new_rel_path = new_path.relative_to(SHARED_FOLDER).as_posix()
+        return {
+            "name": new_path.name,
+            "filename": new_rel_path,
+            "type": "folder",
+            "size": 0,
+            "size_formatted": "Folder",
+            "modified": datetime.fromtimestamp(new_path.stat().st_mtime).isoformat(),
+            "is_dir": True,
+            "is_favorite": new_rel_path in favorites
+        }

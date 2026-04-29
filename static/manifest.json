@@ -1,21 +1,47 @@
 {
-  "name": "LAN Media Hub",
-  "short_name": "Media Hub",
+  "name": "StreamDrop Media Hub",
+  "short_name": "StreamDrop",
+  "description": "Seamlessly stream and manage media on your local network.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#141218",
-  "theme_color": "#141218",
+  "background_color": "#121212",
+  "theme_color": "#121212",
   "orientation": "any",
   "icons": [
     {
-      "src": "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/movie/default/192px.svg",
+      "src": "/static/img/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/movie/default/512px.svg",
+      "src": "/static/img/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/img/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "StreamDrop on Mobile"
+    },
+    {
+      "src": "/static/img/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "StreamDrop on Desktop"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Stream",
+      "url": "/static/index.html?action=stream",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

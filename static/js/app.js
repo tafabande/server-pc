@@ -30,26 +30,60 @@ class StreamDropApp {
         this.playerContainer = document.getElementById('player-container');
         this.playerUI = document.getElementById('player-ui');
         this.playerTitle = document.getElementById('player-title');
-        this.playBtn = document.getElementById('play-pause-btn');
-        this.playIcon = document.getElementById('play-icon');
+        this.centerOverlay = document.getElementById('play-pause-overlay');
+        this.centerIcon = document.getElementById('center-play-icon');
         this.seekBar = document.getElementById('seek-bar');
-        this.timeDisplay = document.getElementById('time-display');
-        this.speedIndicator = document.getElementById('speed-indicator');
+        this.timeCurrent = document.getElementById('time-current');
+        this.timeTotal = document.getElementById('time-total');
         this.closePlayerBtn = document.getElementById('closePlayerBtn');
         this.prevBtn = document.getElementById('prevBtn');
         this.nextBtn = document.getElementById('nextBtn');
         this.fullscreenBtn = document.getElementById('fullscreenBtn');
         this.shutdownBtn = document.getElementById('shutdownBtn');
         this.streamToggleBtn = document.getElementById('streamToggleBtn');
+        this.installAppBtn = document.getElementById('installAppBtn');
+
+        // PWA Install Prompt
+        this.deferredPrompt = null;
 
         // New PWA Action Buttons
         this.favBtn = document.getElementById('fav-btn');
         this.favIcon = document.getElementById('fav-icon');
         this.downloadBtn = document.getElementById('downloadCurrentBtn');
         
+        // Seek Feedback
+        this.seekLeft = document.getElementById('seek-feedback-left');
+        this.seekRight = document.getElementById('seek-feedback-right');
+        this.seekTextIndicator = document.getElementById('seek-text-indicator');
+        
+        // Context Menu & Dialog
+        this.sheetOverlay = document.getElementById('sheetOverlay');
+        this.contextSheet = document.getElementById('contextSheet');
+        this.dialogOverlay = document.getElementById('dialogOverlay');
+        this.renameInput = document.getElementById('renameInput');
+        
+        this.selectedFile = null;
+        this.longPressTimer = null;
+        
+        // Stream UI Elements
+        this.streamContainer = document.getElementById('stream-container');
+        this.streamImg = document.getElementById('stream-img');
+        this.streamAudio = document.getElementById('stream-audio');
+        this.streamStatus = document.getElementById('streamStatus');
+        this.streamModeBtn = document.getElementById('streamModeBtn');
+        this.closeStreamBtn = document.getElementById('closeStreamBtn');
+
         this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
 
         this.init();
+    }
+
+    cleanFilename(filename) {
+        return filename
+            .replace(/\.[^/.]+$/, "") // Remove file extension
+            .replace(/[_-]+/g, " ")   // Replace dashes and underscores
+            .replace(/\b\w/g, c => c.toUpperCase()) // Title Case
+            .trim();
     }
 
     async init() {
@@ -57,6 +91,54 @@ class StreamDropApp {
         this.setupPlayerEvents();
         this.connectWebSocket();
         await this.loadGallery();
+        this.setupPWA();
+        this.handleInitialAction();
+    }
+
+    handleInitialAction() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('action') === 'stream') {
+            this.openStream();
+        }
+    }
+
+    setupPWA() {
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW Registered'))
+                    .catch(err => console.log('SW Registration Failed', err));
+            });
+        }
+
+        // Handle Install Prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            this.deferredPrompt = e;
+            // Update UI notify the user they can add to home screen
+            this.installAppBtn.style.display = 'flex';
+        });
+
+        this.installAppBtn.addEventListener('click', async () => {
+            if (!this.deferredPrompt) return;
+            // Show the prompt
+            this.deferredPrompt.prompt();
+            // Wait for the user to respond to the prompt
+            const { outcome } = await this.deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            // We've used the prompt, and can't use it again, throw it away
+            this.deferredPrompt = null;
+            // Hide the button
+            this.installAppBtn.style.display = 'none';
+        });
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('StreamDrop was installed.');
+            this.installAppBtn.style.display = 'none';
+        });
     }
 
     setupEventListeners() {
@@ -91,23 +173,30 @@ class StreamDropApp {
         this.uploadFab.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleUpload(e));
 
-        // Server Controls
         this.shutdownBtn.addEventListener('click', () => this.handleShutdown());
         this.streamToggleBtn.addEventListener('click', () => this.handleStreamToggle());
+
+        // Overlay Controls
+        this.closeStreamBtn.onclick = () => this.closeStream();
+        this.streamModeBtn.onclick = () => this.handleStreamToggle();
 
         // Global Back Navigation
         window.addEventListener('popstate', (e) => {
             this.currentPath = e.state?.path || "";
             this.loadGallery(false);
         });
+
+        // Context Menu Actions
+        document.getElementById('renameOption').onclick = () => this.showRenameDialog();
+        document.getElementById('deleteOption').onclick = () => this.handleDelete();
+        this.sheetOverlay.onclick = () => this.closeContextMenu();
+        
+        // Rename Dialog Actions
+        document.getElementById('cancelRename').onclick = () => this.closeRenameDialog();
+        document.getElementById('confirmRename').onclick = () => this.handleRename();
     }
 
     setupPlayerEvents() {
-        // Player Controls
-        this.playBtn.addEventListener('click', () => {
-            this.video.paused ? this.video.play() : this.video.pause();
-        });
-
         this.closePlayerBtn.addEventListener('click', () => this.closePlayer());
         this.prevBtn.addEventListener('click', () => this.playPrev());
         this.nextBtn.addEventListener('click', () => this.playNext());
@@ -116,19 +205,17 @@ class StreamDropApp {
         this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
 
         // Video State
-        this.video.addEventListener('play', () => this.playIcon.innerText = 'pause');
-        this.video.addEventListener('pause', () => this.playIcon.innerText = 'play_arrow');
         this.video.addEventListener('ended', () => this.playNext());
-
         this.video.addEventListener('timeupdate', () => {
             if (this.video.duration) {
                 const percent = (this.video.currentTime / this.video.duration) * 100;
                 this.seekBar.value = percent;
-                this.timeDisplay.innerText = `${this.formatTime(this.video.currentTime)} / ${this.formatTime(this.video.duration)}`;
+                this.timeCurrent.innerText = this.formatTime(this.video.currentTime);
+                this.timeTotal.innerText = this.formatTime(this.video.duration);
             }
         });
 
-        // Scrubbing
+        // Seek Bar logic
         this.seekBar.addEventListener('input', (e) => {
             if (this.video.duration) {
                 const time = (e.target.value / 100) * this.video.duration;
@@ -136,33 +223,125 @@ class StreamDropApp {
             }
         });
 
-        // Fast Forward (2x)
-        const enableFF = () => {
-            this.video.playbackRate = 2.0;
-            this.speedIndicator.classList.add('active');
-        };
-        const disableFF = () => {
-            this.video.playbackRate = 1.0;
-            this.speedIndicator.classList.remove('active');
-        };
+        // --- Touch & Gesture Engine (Gold Standard) ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let scrubStartTime = 0;
+        let isSwiping = false;
+        let lastTapTime = 0;
+        let speedTimeout;
 
         const isControl = (el) => el.closest('.icon-btn') || el.closest('#seek-bar');
 
-        this.playerContainer.addEventListener('mousedown', (e) => {
-            if (!isControl(e.target)) enableFF();
-        });
-        window.addEventListener('mouseup', disableFF);
+        this.playerUI.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) return;
+            if (isControl(e.target)) return;
 
-        this.playerContainer.addEventListener('touchstart', (e) => {
-            if (!isControl(e.target)) enableFF();
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            scrubStartTime = this.video.currentTime;
+            isSwiping = false;
+
+            // 1. Double Tap Detection
+            const now = Date.now();
+            if (now - lastTapTime < 300) {
+                const screenWidth = window.innerWidth;
+                if (touchStartX > screenWidth / 2) {
+                    this.seek(10);
+                    this.showSeekText("+10s");
+                    this.showSeekFeedback('right');
+                } else {
+                    this.seek(-10);
+                    this.showSeekText("-10s");
+                    this.showSeekFeedback('left');
+                }
+                clearTimeout(speedTimeout);
+                lastTapTime = 0; // Avoid triple tap
+                return;
+            }
+            lastTapTime = now;
+
+            // 2. Start Long Press Timer (for 2x Speed)
+            speedTimeout = setTimeout(() => {
+                if (!isSwiping) {
+                    this.video.playbackRate = 2.0;
+                    this.centerIcon.innerText = 'fast_forward';
+                    this.centerOverlay.classList.add('animate');
+                }
+            }, 500);
+            
+            this.resetIdleTimer();
         }, { passive: true });
-        window.addEventListener('touchend', disableFF);
+
+        this.playerUI.addEventListener('touchmove', (e) => {
+            if (!touchStartX) return;
+
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
+
+            // Horizontal swipe threshold
+            if (Math.abs(deltaX) > 20 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                isSwiping = true;
+                clearTimeout(speedTimeout);
+                
+                // 1px drag = 0.2s seek
+                const timeDelta = (deltaX - (Math.sign(deltaX) * 20)) * 0.2;
+                let newTime = scrubStartTime + timeDelta;
+                newTime = Math.max(0, Math.min(this.video.duration, newTime));
+                this.video.currentTime = newTime;
+
+                this.seekTextIndicator.innerText = this.formatTime(newTime);
+                this.seekTextIndicator.classList.add('visible');
+                this.resetIdleTimer();
+            }
+        }, { passive: true });
+
+        this.playerUI.addEventListener('touchend', () => {
+            clearTimeout(speedTimeout);
+            this.video.playbackRate = 1.0;
+            this.centerOverlay.classList.remove('animate');
+            this.centerIcon.innerText = this.video.paused ? 'play_arrow' : 'pause';
+            
+            if (isSwiping) {
+                isSwiping = false;
+                this.seekTextIndicator.classList.remove('visible');
+            }
+            touchStartX = 0;
+        });
+
+        // Single Tap to Toggle Playback
+        this.playerUI.addEventListener('click', (e) => {
+            if (isControl(e.target)) return;
+            if (isSwiping) return;
+            
+            this.togglePlayPause();
+            this.resetIdleTimer();
+        });
+
+        // Mouse fallback for PC users
+        this.playerUI.addEventListener('mousedown', (e) => {
+            if (isControl(e.target)) return;
+            speedTimeout = setTimeout(() => {
+                this.video.playbackRate = 2.0;
+                this.centerIcon.innerText = 'fast_forward';
+                this.centerOverlay.classList.add('animate');
+            }, 500);
+        });
+
+        const stopFF = () => {
+            clearTimeout(speedTimeout);
+            this.video.playbackRate = 1.0;
+            this.centerOverlay.classList.remove('animate');
+            this.centerIcon.innerText = this.video.paused ? 'play_arrow' : 'pause';
+        };
+
+        this.playerUI.addEventListener('mouseup', stopFF);
+        this.playerUI.addEventListener('mouseleave', stopFF);
 
         // Auto-Hide Controls
-        const resetIdle = () => this.resetIdleTimer();
-        this.playerContainer.addEventListener('mousemove', resetIdle);
-        this.playerContainer.addEventListener('touchstart', resetIdle, { passive: true });
-        this.playerContainer.addEventListener('click', resetIdle);
+        this.playerUI.addEventListener('mousemove', () => this.resetIdleTimer());
     }
 
     connectWebSocket() {
@@ -220,6 +399,17 @@ class StreamDropApp {
             return matchesSearch;
         });
 
+        // Add "Live Stream" card if at root
+        if (!this.currentPath && !this.searchQuery && this.activeFilter === 'all') {
+            this.filteredFiles.unshift({
+                name: "Live Desktop Stream",
+                filename: "LIVE_STREAM",
+                type: "stream",
+                is_dir: false,
+                is_virtual: true
+            });
+        }
+
         this.renderGallery();
     }
 
@@ -245,6 +435,8 @@ class StreamDropApp {
             if (isFolder) {
                 const initials = this.getInitials(file.name);
                 content = `<div class="folder-avatar">${initials}</div>`;
+            } else if (file.type === 'stream') {
+                content = `<span class="material-symbols-rounded" style="font-size: 64px; color: var(--m3-primary);">sensors</span>`;
             } else if (file.thumbnail_url) {
                 content = `<img src="${file.thumbnail_url}" loading="lazy" alt="${file.name}" onerror="this.src='/static/img/fallback.png'; this.onerror=null;">`;
             } else {
@@ -266,7 +458,29 @@ class StreamDropApp {
                 <div class="info">${file.name}</div>
             `;
 
-            card.onclick = () => this.handleItemClick(file);
+            card.onclick = () => {
+                if (file.type === 'stream') {
+                    this.openStream();
+                } else {
+                    this.handleItemClick(file);
+                }
+            };
+            
+            // Context Menu Triggers
+            card.oncontextmenu = (e) => {
+                e.preventDefault();
+                this.openContextMenu(file);
+            };
+
+            // Long Press (Mobile)
+            card.ontouchstart = () => {
+                this.longPressTimer = setTimeout(() => {
+                    this.openContextMenu(file);
+                }, 600);
+            };
+            card.ontouchend = () => clearTimeout(this.longPressTimer);
+            card.ontouchmove = () => clearTimeout(this.longPressTimer);
+
             this.gallery.appendChild(card);
         });
     }
@@ -318,9 +532,24 @@ class StreamDropApp {
         this.currentVideoIndex = index;
         const item = this.currentPlaylist[index];
         
-        this.playerTitle.innerText = item.name;
+        this.playerTitle.innerText = this.cleanFilename(item.name);
         this.video.src = `/api/stream/media/${encodeURIComponent(item.filename)}`;
         
+        // Subtitles
+        const oldTrack = this.video.querySelector('track');
+        if (oldTrack) oldTrack.remove();
+
+        if (item.subtitles_url) {
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = 'English';
+            track.srclang = 'en';
+            track.src = item.subtitles_url;
+            track.default = true;
+            this.video.appendChild(track);
+            console.log("Subtitle track added:", item.subtitles_url);
+        }
+
         this.playerContainer.classList.remove('hidden');
         this.updateLocalFavIcon(item.filename);
         this.video.play();
@@ -332,6 +561,48 @@ class StreamDropApp {
         this.video.src = "";
         this.playerContainer.classList.add('hidden');
         if (document.fullscreenElement) document.exitFullscreen();
+    }
+
+    togglePlayPause() {
+        if (this.video.paused) {
+            this.video.play();
+            this.animateCenterIcon('play_arrow');
+        } else {
+            this.video.pause();
+            this.animateCenterIcon('pause');
+        }
+    }
+
+    animateCenterIcon(iconName) {
+        this.centerIcon.innerText = iconName;
+        this.centerOverlay.classList.remove('animate');
+        void this.centerOverlay.offsetWidth; // Force reflow
+        this.centerOverlay.classList.add('animate');
+        
+        setTimeout(() => {
+            this.centerOverlay.classList.remove('animate');
+        }, 500);
+    }
+
+    seek(seconds) {
+        if (!this.video.duration) return;
+        this.video.currentTime = Math.max(0, Math.min(this.video.duration, this.video.currentTime + seconds));
+        this.resetIdleTimer();
+    }
+
+    showSeekText(text) {
+        this.seekTextIndicator.innerText = text;
+        this.seekTextIndicator.classList.add('visible');
+        setTimeout(() => this.seekTextIndicator.classList.remove('visible'), 600);
+    }
+
+    showSeekFeedback(side) {
+        const el = side === 'left' ? this.seekLeft : this.seekRight;
+        if (!el) return;
+        el.classList.remove('animate');
+        void el.offsetWidth; // Force reflow
+        el.classList.add('animate');
+        setTimeout(() => el.classList.remove('animate'), 600);
     }
 
     playNext() {
@@ -446,38 +717,46 @@ class StreamDropApp {
         const files = e.target.files;
         if (!files.length) return;
 
-        // Show loading state on FAB
-        const originalContent = this.uploadFab.innerHTML;
-        this.uploadFab.innerHTML = `<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span>`;
+        const uploadIcon = document.getElementById('uploadIcon');
+        const progressCircle = document.getElementById('uploadProgress');
+        
+        // Show loading state
+        uploadIcon.innerText = 'sync';
+        uploadIcon.style.animation = 'spin 1s linear infinite';
         this.uploadFab.style.pointerEvents = 'none';
+        progressCircle.style.display = 'block';
 
         for (const file of files) {
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            try {
-                const target = encodeURIComponent(this.currentPath);
-                const response = await fetch(`/api/upload?path=${target}`, {
-                    method: 'POST',
-                    body: formData
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const formData = new FormData();
+                formData.append('file', file);
+
+                xhr.upload.addEventListener('progress', (ev) => {
+                    if (ev.lengthComputable) {
+                        const percent = (ev.loaded / ev.total) * 100;
+                        progressCircle.style.background = `conic-gradient(var(--m3-primary) ${percent}%, transparent 0)`;
+                    }
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error(`Upload failed with ${response.status}:`, errorText);
-                    alert(`Upload failed: ${file.name}`);
-                }
-            } catch (error) {
-                console.error("Network error during upload:", error);
-                alert(`Network error during upload: ${file.name}`);
-            }
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve();
+                    else reject(new Error(xhr.responseText));
+                };
+                xhr.onerror = () => reject(new Error("Network error"));
+
+                const target = encodeURIComponent(this.currentPath);
+                xhr.open('POST', `/api/upload?path=${target}`);
+                xhr.send(formData);
+            });
         }
         
-        this.uploadFab.innerHTML = originalContent;
+        // Reset state
+        uploadIcon.innerText = 'add';
+        uploadIcon.style.animation = 'none';
         this.uploadFab.style.pointerEvents = 'auto';
+        progressCircle.style.display = 'none';
         this.fileInput.value = '';
-        // No need to manually loadGallery if WebSocket is working, 
-        // but it doesn't hurt to have a fallback if we didn't receive a signal.
         await this.loadGallery();
     }
 
@@ -525,12 +804,148 @@ class StreamDropApp {
             const response = await fetch('/api/stream/toggle', { method: 'POST' });
             const data = await response.json();
             const icon = data.mode === 'webcam' ? 'videocam' : 'screen_share';
-            this.streamToggleBtn.querySelector('.material-symbols-rounded').innerText = icon;
             
-            // Show toast/snack
+            // Update both buttons (header and overlay)
+            this.streamToggleBtn.querySelector('.material-symbols-rounded').innerText = icon;
+            this.streamModeBtn.querySelector('.material-symbols-rounded').innerText = icon;
+            
+            // Update title in overlay
+            const title = data.mode === 'webcam' ? 'Live Webcam Stream' : 'Live Desktop Stream';
+            this.streamContainer.querySelector('.title').innerText = title;
+
             console.log(`Stream mode changed to: ${data.mode}`);
         } catch (e) {
             console.error("Toggle failed:", e);
+        }
+    }
+
+    async openStream() {
+        try {
+            // 1. Start the stream on the backend
+            const response = await fetch('/api/stream/start', { method: 'POST' });
+            const data = await response.json();
+            
+            // 2. Update UI
+            const icon = data.mode === 'webcam' ? 'videocam' : 'screen_share';
+            const title = data.mode === 'webcam' ? 'Live Webcam Stream' : 'Live Desktop Stream';
+            
+            this.streamModeBtn.querySelector('.material-symbols-rounded').innerText = icon;
+            this.streamContainer.querySelector('.title').innerText = title;
+            this.streamStatus.innerText = "Live";
+            
+            // 3. Show overlay
+            this.streamContainer.classList.remove('hidden');
+            
+            // 4. Set stream sources (use a timestamp to bust cache)
+            const t = Date.now();
+            this.streamImg.src = `/api/stream/video?t=${t}`;
+            this.streamAudio.src = `/api/stream/audio?t=${t}`;
+            this.streamAudio.play().catch(e => console.log("Audio autoplay blocked", e));
+            
+            // 5. Hide gallery scroll
+            document.body.style.overflow = 'hidden';
+        } catch (e) {
+            console.error("Failed to open stream:", e);
+        }
+    }
+
+    async closeStream() {
+        try {
+            // 1. Stop stream on backend
+            await fetch('/api/stream/stop', { method: 'POST' });
+            
+            // 2. Hide overlay
+            this.streamContainer.classList.add('hidden');
+            
+            // 3. Clear sources
+            this.streamImg.src = "";
+            this.streamAudio.src = "";
+            
+            // 4. Restore scroll
+            document.body.style.overflow = '';
+        } catch (e) {
+            console.error("Failed to close stream:", e);
+        }
+    }
+
+    // --- File Management ---
+
+    openContextMenu(file) {
+        this.selectedFile = file;
+        this.sheetOverlay.classList.add('active');
+        this.contextSheet.classList.add('active');
+        
+        // Haptic feedback if available
+        if (window.navigator.vibrate) {
+            window.navigator.vibrate(50);
+        }
+    }
+
+    closeContextMenu() {
+        this.sheetOverlay.classList.remove('active');
+        this.contextSheet.classList.remove('active');
+        this.selectedFile = null;
+    }
+
+    async handleDelete() {
+        if (!this.selectedFile) return;
+        
+        const confirmMsg = this.selectedFile.is_dir 
+            ? `Delete folder "${this.selectedFile.name}" and all its contents?`
+            : `Delete "${this.selectedFile.name}"?`;
+            
+        if (confirm(confirmMsg)) {
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(this.selectedFile.filename)}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    this.closeContextMenu();
+                    await this.loadGallery();
+                } else {
+                    alert("Delete failed");
+                }
+            } catch (e) {
+                console.error("Delete failed:", e);
+            }
+        }
+    }
+
+    showRenameDialog() {
+        if (!this.selectedFile) return;
+        this.renameInput.value = this.selectedFile.name;
+        this.dialogOverlay.classList.add('active');
+        this.renameInput.focus();
+    }
+
+    closeRenameDialog() {
+        this.dialogOverlay.classList.remove('active');
+        this.closeContextMenu();
+    }
+
+    async handleRename() {
+        const newName = this.renameInput.value.trim();
+        if (!newName || !this.selectedFile || newName === this.selectedFile.name) {
+            this.closeRenameDialog();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/files/${encodeURIComponent(this.selectedFile.filename)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_name: newName })
+            });
+
+            if (response.ok) {
+                this.closeRenameDialog();
+                await this.loadGallery();
+            } else {
+                const err = await response.json();
+                alert(err.detail || "Rename failed");
+            }
+        } catch (e) {
+            console.error("Rename failed:", e);
         }
     }
 }
