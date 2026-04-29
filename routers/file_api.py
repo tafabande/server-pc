@@ -9,6 +9,7 @@ from file_manager import save_upload, list_files, delete_file, get_or_generate_t
 from favorites_manager import list_favorites_details, toggle_favorite
 from core.database import add_video_job, get_folder_optimization, set_folder_optimization
 from workers.compression import job_queue
+from core.websocket_manager import ws_manager
 
 logger = logging.getLogger("streamdrop.file_api")
 router = APIRouter(prefix="/api", tags=["Files"])
@@ -66,7 +67,8 @@ async def upload_file(file: UploadFile = File(...), path: str = Query(default=""
                     await job_queue.put(dict(job))
                     logger.info(f"Queued {info['name']} for optimization")
 
-        # In a real app we'd broadcast ws update here. We'll import ws_manager in core.main
+        # Broadcast the update to all clients
+        await ws_manager.broadcast({"type": "update"})
         return {"status": "ok", "file": info}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -116,6 +118,7 @@ async def remove_file(filename: str):
         deleted = delete_file(filename)
         if not deleted:
             raise HTTPException(status_code=404, detail="File not found")
+        await ws_manager.broadcast({"type": "update"})
         return {"status": "ok", "deleted": filename}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -124,6 +127,7 @@ async def remove_file(filename: str):
 async def rename_file_endpoint(filename: str, body: RenameRequest):
     try:
         info = rename_item(filename, body.new_name)
+        await ws_manager.broadcast({"type": "update"})
         return {"status": "ok", "file": info}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

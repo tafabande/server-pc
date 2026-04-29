@@ -936,3 +936,12 @@ header {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+@keyframes toastIn {
+    from { transform: translate(-50%, 20px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+@keyframes toastOut {
+    from { transform: translate(-50%, 0); opacity: 1; }
+    to { transform: translate(-50%, 20px); opacity: 0; }
+}

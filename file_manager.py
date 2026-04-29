@@ -278,10 +278,9 @@ async def get_or_generate_thumbnail(rel_path: str) -> Path:
     if thumb_path.exists():
         return thumb_path
         
-    # Generate synchronously (it's called from a threadpool in FastAPI if using sync def)
-    # But since we are 'async def' in main.py, we should run this in a thread if it's heavy.
-    # However, let's just make it simple for now as FFmpeg is an external process.
-    _generate_thumbnail(filepath)
+    # CRITICAL FIX: Push the blocking FFmpeg/CV2 call to a separate thread
+    import asyncio
+    await asyncio.to_thread(_generate_thumbnail, filepath)
     return thumb_path
 
 def _generate_thumbnail(filepath: Path):

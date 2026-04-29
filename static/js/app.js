@@ -85,10 +85,40 @@ class StreamDropApp {
 
         this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
 
-        // HLS Player Instance
         this.hlsPlayer = null;
 
+        // Lazy Rendering
+        this.itemsPerPage = 50;
+        this.visibleCount = this.itemsPerPage;
+        this.observer = null;
+
         this.init();
+    }
+
+    showToast(message, isError = false) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${isError ? '#ffb4ab' : '#313033'};
+            color: ${isError ? '#690005' : '#f4eff4'};
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 9999;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease-out;
+        `;
+        toast.innerText = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastOut 0.3s ease-in forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
 
     cleanFilename(filename) {
@@ -413,6 +443,7 @@ class StreamDropApp {
             const response = await fetch(url);
             const data = await response.json();
             this.allFiles = data.items || [];
+            this.visibleCount = this.itemsPerPage; // Reset scroll on new folder
             
             // Build current playlist (only videos)
             this.currentPlaylist = this.allFiles.filter(f => f.type === 'video');
@@ -477,7 +508,10 @@ class StreamDropApp {
 
         this.emptyState.style.display = 'none';
 
-        this.filteredFiles.forEach(file => {
+        // Get chunk
+        const chunk = this.filteredFiles.slice(0, this.visibleCount);
+        
+        chunk.forEach(file => {
             const card = document.createElement('div');
             card.className = 'media-card';
             
@@ -520,23 +554,31 @@ class StreamDropApp {
                 }
             };
             
-            // Context Menu Triggers
             card.oncontextmenu = (e) => {
                 e.preventDefault();
                 this.openContextMenu(file);
             };
 
-            // Long Press (Mobile)
-            card.ontouchstart = () => {
-                this.longPressTimer = setTimeout(() => {
-                    this.openContextMenu(file);
-                }, 600);
-            };
-            card.ontouchend = () => clearTimeout(this.longPressTimer);
-            card.ontouchmove = () => clearTimeout(this.longPressTimer);
-
             this.gallery.appendChild(card);
         });
+
+        // Setup Infinite Scroll Sentinel
+        if (this.visibleCount < this.filteredFiles.length) {
+            const sentinel = document.createElement('div');
+            sentinel.className = 'sentinel';
+            sentinel.style.height = '20px';
+            sentinel.style.width = '100%';
+            this.gallery.appendChild(sentinel);
+
+            if (this.observer) this.observer.disconnect();
+            this.observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    this.visibleCount += this.itemsPerPage;
+                    this.renderGallery();
+                }
+            }, { rootMargin: '200px' });
+            this.observer.observe(sentinel);
+        }
     }
 
     renderBreadcrumbs() {

@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from config import SHARED_FOLDER
 from core.database import log_audit
+from core.websocket_manager import ws_manager
 
 router = APIRouter(prefix="/api/docs", tags=["Docs"])
 
@@ -47,5 +48,8 @@ async def write_doc(filename: str, request: SaveDocRequest, req: Request):
     # Log the audit trail
     ip_address = req.client.host if req.client else "unknown"
     log_audit(ip_address, filename, "Edited")
+    
+    # Broadcast update
+    await ws_manager.broadcast({"type": "update"})
         
     return {"status": "ok", "message": "Document saved successfully"}

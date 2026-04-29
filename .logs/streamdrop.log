@@ -386,3 +386,67 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 12:29:25 │ streamdrop               │ INFO    │    Network: http://10.36.55.5:8000
 12:29:25 │ streamdrop               │ INFO    │    Host:    fluffy-fafi
 12:29:25 │ streamdrop               │ INFO    │ ============================================================
+14:01:53 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+14:01:53 │ streamdrop               │ INFO    │ ============================================================
+14:01:53 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running (Modular Architecture)!
+14:01:53 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+14:01:53 │ streamdrop               │ INFO    │    Network: http://10.36.55.5:8000
+14:01:53 │ streamdrop               │ INFO    │ ============================================================
+14:01:54 │ streamdrop.compression   │ INFO    │ Compression worker started. Re-queuing pending jobs...
+14:01:54 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:63711 (total: 1)
+14:03:49 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:03:49 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:03:50 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:51899 (total: 2)
+14:06:24 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:51899 (total: 1)
+14:06:24 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:06:24 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:06:24 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:60157 (total: 2)
+14:06:52 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:63711 (total: 1)
+14:06:52 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:59568 (total: 2)
+14:06:52 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:06:52 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:11:21 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:60157 (total: 1)
+14:11:21 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:11:21 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:11:21 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:63743 (total: 2)
+14:17:51 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:63743 (total: 1)
+14:17:51 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:17:51 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:17:51 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50977 (total: 2)
+14:19:34 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:50977 (total: 1)
+14:19:34 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:19:34 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:19:34 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50422 (total: 2)
+14:21:40 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:59568 (total: 1)
+14:21:41 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:59667 (total: 2)
+14:21:41 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:21:41 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:21:55 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:21:55 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:22:19 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:50422 (total: 1)
+14:22:19 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:22:19 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:22:19 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:55183 (total: 2)
+14:22:34 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:59667 (total: 1)
+14:22:34 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:53762 (total: 2)
+14:22:34 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:22:34 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:22:50 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+14:22:50 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
+14:24:31 │ streamdrop.streaming     │ INFO    │ 🔄 Switched to webcam
+14:24:34 │ streamdrop.streaming     │ INFO    │ 🔄 Switched to screen
+14:24:35 │ streamdrop.streaming     │ INFO    │ 🔄 Switched to webcam
+14:24:36 │ streamdrop.streaming     │ INFO    │ 🔄 Switched to screen
+14:32:22 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:53762 (total: 1)
+14:32:22 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:55183 (total: 0)
+14:44:42 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:57375 (total: 1)
+14:44:43 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:59584 (total: 2)
+14:45:30 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:57375 (total: 1)
+14:51:15 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+14:51:15 │ streamdrop               │ INFO    │ ============================================================
+14:51:15 │ streamdrop               │ INFO    │ 🚀 StreamDrop is running (Modular Architecture)!
+14:51:15 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+14:51:15 │ streamdrop               │ INFO    │    Network: http://10.50.11.157:8000
+14:51:15 │ streamdrop               │ INFO    │ ============================================================
+14:51:15 │ streamdrop.compression   │ INFO    │ Compression worker started. Re-queuing pending jobs...
+14:51:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:61787 (total: 1)
