@@ -1224,7 +1224,7 @@ class StreamDropApp {
         }
     }
 
-    showQRCode() {
+    async showQRCode() {
         const qrContainer = document.getElementById("qrcode");
         qrContainer.innerHTML = ""; // Clear old code
 
@@ -1233,8 +1233,21 @@ class StreamDropApp {
             return;
         }
 
+        let targetUrl = window.location.origin;
+        
+        try {
+            // Fetch actual network IP from backend so it works even if accessed via localhost
+            const res = await fetch('/api/status');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.url) targetUrl = data.url;
+            }
+        } catch (e) {
+            console.warn("Could not fetch server IP for QR code, using current origin.");
+        }
+
         new QRCode(qrContainer, {
-            text: window.location.origin,
+            text: targetUrl,
             width: 200,
             height: 200,
             colorDark : "#000000",

@@ -1,10 +1,10 @@
-const CACHE_NAME = 'streamdrop-v3';
+const CACHE_NAME = 'streamdrop-v4';
 const ASSETS = [
     '/',
     '/static/index.html',
-    '/static/js/app.js?v=2',
-    '/static/js/editor.js?v=2',
-    '/static/css/m3.css?v=2',
+    '/static/js/app.js?v=3',
+    '/static/js/editor.js?v=3',
+    '/static/css/m3.css?v=3',
     '/static/img/icon-192.png',
     '/static/img/icon-512.png',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
