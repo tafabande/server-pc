@@ -328,6 +328,35 @@ async def toggle_fav(body: FavoriteRequest):
     return {"status": "ok", "favorite": state}
 
 
+@app.post("/api/upload/subtitles")
+async def upload_subtitles(
+    file: UploadFile = File(...), 
+    video_filename: str = Query(...)
+):
+    """Upload a subtitle file and associate it with a specific video."""
+    from file_manager import save_upload, SHARED_FOLDER
+    
+    # Ensure it's a subtitle
+    ext = Path(file.filename).suffix.lower()
+    if ext not in {".srt", ".vtt"}:
+        raise HTTPException(status_code=400, detail="Only .srt and .vtt files are allowed")
+    
+    # Target path: same as video but with subtitle extension
+    video_path = SHARED_FOLDER / video_filename
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    target_path = video_path.with_suffix(ext)
+    
+    # Save the file
+    async with aiofiles.open(target_path, "wb") as out_file:
+        while chunk := await file.read(1024 * 1024):
+            await out_file.write(chunk)
+            
+    logger.info(f"📝 Subtitles uploaded for {video_filename}")
+    await ws_manager.broadcast_update()
+    return {"status": "ok", "subtitles": target_path.name}
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...), path: str = Query(default="")):
     """Upload a file to a specific path in the shared folder."""

@@ -61,8 +61,18 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket):
         """Accept a new WebSocket connection and send initial state."""
-        await websocket.accept()
         async with self._lock:
+            if len(self.active_connections) >= 5:
+                logger.warning(f"🚫 Connection rejected: limit reached (5/5)")
+                await websocket.accept()
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Connection limit reached (5 devices max). Please disconnect another device."
+                })
+                await websocket.close(code=4000)
+                return
+
+            await websocket.accept()
             self.active_connections.append(websocket)
 
         client = f"{websocket.client.host}:{websocket.client.port}"

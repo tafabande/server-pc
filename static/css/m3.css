@@ -34,6 +34,51 @@ body {
   overflow-x: hidden;
 }
 
+/* --- Global Progress --- */
+.global-progress-container {
+    background: var(--m3-surface-container-high);
+    border-radius: var(--radius-m);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--m3-outline);
+    animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.global-progress-container.hidden {
+    display: none;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--m3-on-surface);
+}
+
+.progress-track {
+    height: 4px;
+    background: var(--m3-surface-container);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--m3-primary);
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* --- Layout --- */
 .app-container {
   max-width: 1200px;
@@ -847,4 +892,47 @@ header {
   .stream-actions {
     justify-content: center;
   }
+}
+
+/* --- Live Captions --- */
+.captions-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-height: 150px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    mask-image: linear-gradient(to top, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
+    scrollbar-width: none;
+}
+
+.captions-overlay::-webkit-scrollbar {
+    display: none;
+}
+
+.caption-segment {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    width: fit-content;
+    align-self: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: captionSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+@keyframes captionSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

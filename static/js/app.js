@@ -72,8 +72,21 @@ class StreamDropApp {
         this.streamStatus = document.getElementById('streamStatus');
         this.streamModeBtn = document.getElementById('streamModeBtn');
         this.closeStreamBtn = document.getElementById('closeStreamBtn');
+        this.liveCaptions = document.getElementById('live-captions');
+        this.subtitleInput = document.getElementById('subtitleInput');
+
+        this.globalProgress = document.getElementById('globalProgress');
+        this.progressLabel = document.getElementById('progressLabel');
+        this.progressPercent = document.getElementById('progressPercent');
+        this.progressBar = document.getElementById('progressBar');
+
+        this.folderSettings = document.getElementById('folderSettings');
+        this.optimizeFolderToggle = document.getElementById('optimizeFolderToggle');
 
         this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
+
+        // HLS Player Instance
+        this.hlsPlayer = null;
 
         this.init();
     }
@@ -188,12 +201,30 @@ class StreamDropApp {
 
         // Context Menu Actions
         document.getElementById('renameOption').onclick = () => this.showRenameDialog();
+        document.getElementById('subtitleOption').onclick = () => this.subtitleInput.click();
         document.getElementById('deleteOption').onclick = () => this.handleDelete();
+        this.subtitleInput.onchange = (e) => this.handleSubtitleUpload(e);
         this.sheetOverlay.onclick = () => this.closeContextMenu();
         
         // Rename Dialog Actions
         document.getElementById('cancelRename').onclick = () => this.closeRenameDialog();
         document.getElementById('confirmRename').onclick = () => this.handleRename();
+
+        // Folder Optimization Toggle
+        if (this.optimizeFolderToggle) {
+            this.optimizeFolderToggle.addEventListener('change', async (e) => {
+                const enabled = e.target.checked;
+                try {
+                    await fetch('/api/folder/optimization', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folder_path: this.currentPath, enabled: enabled })
+                    });
+                } catch (err) {
+                    console.error('Failed to update folder settings:', err);
+                }
+            });
+        }
     }
 
     setupPlayerEvents() {
@@ -354,6 +385,10 @@ class StreamDropApp {
                 if (data.type === 'update') {
                     console.log("🔄 Real-time update received");
                     this.loadGallery();
+                } else if (data.type === 'transcription') {
+                    this.showLiveCaption(data.text);
+                } else if (data.type === 'error') {
+                    alert(data.message); // Device limit reached
                 }
             } catch (e) {
                 // Handle raw string messages for backward compatibility
@@ -388,8 +423,27 @@ class StreamDropApp {
 
             this.applyFilters();
             this.renderBreadcrumbs();
+            this.updateFolderSettings();
         } catch (error) {
             console.error("Failed to load gallery:", error);
+        }
+    }
+
+    async updateFolderSettings() {
+        if (!this.folderSettings) return;
+        
+        if (this.activeFilter === 'favorites') {
+            this.folderSettings.style.display = 'none';
+            return;
+        }
+
+        this.folderSettings.style.display = 'flex';
+        try {
+            const response = await fetch(`/api/folder/optimization?folder_path=${encodeURIComponent(this.currentPath)}`);
+            const data = await response.json();
+            this.optimizeFolderToggle.checked = data.enabled;
+        } catch (err) {
+            console.error('Failed to get folder settings:', err);
         }
     }
 
@@ -511,6 +565,12 @@ class StreamDropApp {
         } else if (file.type === 'video') {
             const index = this.currentPlaylist.findIndex(v => v.filename === file.filename);
             this.openPlayer(index);
+        } else if (file.type === 'text' && (file.name.endsWith('.txt') || file.name.endsWith('.md'))) {
+            if (typeof openEditor === 'function') {
+                openEditor(file.filename);
+            } else {
+                window.open(`/api/download/${encodeURIComponent(file.filename)}`, '_blank');
+            }
         } else {
             const url = `/api/stream/media/${encodeURIComponent(file.filename)}`;
             window.open(url, '_blank');
@@ -526,14 +586,46 @@ class StreamDropApp {
 
     // --- Player Logic ---
 
-    openPlayer(index) {
+    async openPlayer(index) {
         if (index < 0 || index >= this.currentPlaylist.length) return;
         
         this.currentVideoIndex = index;
         const item = this.currentPlaylist[index];
         
         this.playerTitle.innerText = this.cleanFilename(item.name);
-        this.video.src = `/api/stream/media/${encodeURIComponent(item.filename)}`;
+        
+        // Clean up previous HLS instance if any
+        if (this.hlsPlayer) {
+            this.hlsPlayer.destroy();
+            this.hlsPlayer = null;
+        }
+
+        const hlsUrl = `/api/stream/hls/${encodeURIComponent(item.filename)}/index.m3u8`;
+        const directUrl = `/api/stream/media/${encodeURIComponent(item.filename)}`;
+
+        // Check if HLS playlist exists
+        try {
+            const headResponse = await fetch(hlsUrl, { method: 'HEAD' });
+            if (headResponse.ok) {
+                console.log("HLS stream found, attempting playback");
+                if (Hls.isSupported()) {
+                    this.hlsPlayer = new Hls();
+                    this.hlsPlayer.loadSource(hlsUrl);
+                    this.hlsPlayer.attachMedia(this.video);
+                } else if (this.video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Safari native support
+                    this.video.src = hlsUrl;
+                } else {
+                    // Fallback if HLS not supported at all
+                    this.video.src = directUrl;
+                }
+            } else {
+                throw new Error("No HLS");
+            }
+        } catch (e) {
+            console.log("Falling back to direct Byte-Range stream");
+            this.video.src = directUrl;
+        }
         
         // Subtitles
         const oldTrack = this.video.querySelector('track');
@@ -552,13 +644,18 @@ class StreamDropApp {
 
         this.playerContainer.classList.remove('hidden');
         this.updateLocalFavIcon(item.filename);
-        this.video.play();
+        this.video.play().catch(e => console.error("Playback prevented:", e));
         this.resetIdleTimer();
     }
 
     closePlayer() {
+        if (this.hlsPlayer) {
+            this.hlsPlayer.destroy();
+            this.hlsPlayer = null;
+        }
         this.video.pause();
-        this.video.src = "";
+        this.video.removeAttribute('src'); // Better than src="" to fully stop loading
+        this.video.load();
         this.playerContainer.classList.add('hidden');
         if (document.fullscreenElement) document.exitFullscreen();
     }
@@ -701,16 +798,77 @@ class StreamDropApp {
         this.updateLocalFavIcon(currentVid.filename);
     }
 
-    downloadCurrent() {
+    async downloadCurrent() {
         const currentVid = this.currentPlaylist[this.currentVideoIndex];
         if (!currentVid) return;
 
-        const a = document.createElement('a');
-        a.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
-        a.download = currentVid.name; 
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        this.updateProgressUI(`Downloading: ${currentVid.name}`, 0);
+
+        try {
+            const response = await fetch(`/api/download/${encodeURIComponent(currentVid.filename)}`);
+            if (!response.ok) throw new Error("Download failed");
+
+            const contentLength = response.headers.get('content-length');
+            if (!contentLength) {
+                // Fallback if no content length (unlikely on this server)
+                window.location.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
+                this.updateProgressUI("", 0, false);
+                return;
+            }
+
+            const total = parseInt(contentLength, 10);
+            
+            // Memory Optimization: If file > 100MB, use native download 
+            // to avoid crashing browser with large Blobs
+            if (total > 100 * 1024 * 1024) {
+                console.log("File large, using native download for memory safety");
+                window.location.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
+                this.updateProgressUI("", 0, false);
+                return;
+            }
+
+            let loaded = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while(true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                chunks.push(value);
+                loaded += value.length;
+                this.updateProgressUI(`Downloading: ${currentVid.name}`, (loaded / total) * 100);
+            }
+
+            const blob = new Blob(chunks);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentVid.name;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        } catch (err) {
+            console.error("Download failed:", err);
+            // Final fallback
+            window.location.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
+        }
+
+        this.updateProgressUI("", 0, false);
+    }
+
+    updateProgressUI(label, percent, visible = true) {
+        if (!visible) {
+            this.globalProgress.classList.add('hidden');
+            return;
+        }
+        this.globalProgress.classList.remove('hidden');
+        this.progressLabel.innerText = label;
+        this.progressPercent.innerText = `${Math.round(percent)}%`;
+        this.progressBar.style.width = `${percent}%`;
     }
 
     async handleUpload(e) {
@@ -726,7 +884,11 @@ class StreamDropApp {
         this.uploadFab.style.pointerEvents = 'none';
         progressCircle.style.display = 'block';
 
+        let totalUploaded = 0;
+        const totalSize = Array.from(files).reduce((acc, f) => acc + f.size, 0);
+
         for (const file of files) {
+            let lastFileUploaded = 0;
             await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 const formData = new FormData();
@@ -734,14 +896,21 @@ class StreamDropApp {
 
                 xhr.upload.addEventListener('progress', (ev) => {
                     if (ev.lengthComputable) {
-                        const percent = (ev.loaded / ev.total) * 100;
-                        progressCircle.style.background = `conic-gradient(var(--m3-primary) ${percent}%, transparent 0)`;
+                        const filePercent = (ev.loaded / ev.total) * 100;
+                        progressCircle.style.background = `conic-gradient(var(--m3-primary) ${filePercent}%, transparent 0)`;
+                        
+                        // Global progress
+                        const currentTotal = totalUploaded + ev.loaded;
+                        const overallPercent = (currentTotal / totalSize) * 100;
+                        this.updateProgressUI(`Uploading: ${file.name}`, overallPercent);
                     }
                 });
 
                 xhr.onload = () => {
-                    if (xhr.status >= 200 && xhr.status < 300) resolve();
-                    else reject(new Error(xhr.responseText));
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        totalUploaded += file.size;
+                        resolve();
+                    } else reject(new Error(xhr.responseText));
                 };
                 xhr.onerror = () => reject(new Error("Network error"));
 
@@ -752,6 +921,7 @@ class StreamDropApp {
         }
         
         // Reset state
+        this.updateProgressUI("", 0, false);
         uploadIcon.innerText = 'add';
         uploadIcon.style.animation = 'none';
         this.uploadFab.style.pointerEvents = 'auto';
@@ -833,6 +1003,9 @@ class StreamDropApp {
             this.streamContainer.querySelector('.title').innerText = title;
             this.streamStatus.innerText = "Live";
             
+            // Clear old captions
+            this.liveCaptions.innerHTML = "";
+            
             // 3. Show overlay
             this.streamContainer.classList.remove('hidden');
             
@@ -847,6 +1020,63 @@ class StreamDropApp {
         } catch (e) {
             console.error("Failed to open stream:", e);
         }
+    }
+
+    showLiveCaption(text) {
+        const caption = document.createElement('div');
+        caption.className = 'caption-segment';
+        caption.innerText = text;
+        
+        this.liveCaptions.appendChild(caption);
+        
+        // Auto-scroll to bottom
+        this.liveCaptions.scrollTop = this.liveCaptions.scrollHeight;
+        
+        // Keep only last 20 segments to save DOM memory
+        while (this.liveCaptions.childNodes.length > 20) {
+            this.liveCaptions.removeChild(this.liveCaptions.firstChild);
+        }
+    }
+
+    async handleSubtitleUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !this.selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        this.updateProgressUI(`Uploading Subtitles: ${file.name}`, 0);
+
+        try {
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (ev) => {
+                    if (ev.lengthComputable) {
+                        const percent = (ev.loaded / ev.total) * 100;
+                        this.updateProgressUI(`Uploading Subtitles: ${file.name}`, percent);
+                    }
+                });
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve();
+                    else reject(new Error(xhr.responseText));
+                };
+                xhr.onerror = () => reject(new Error("Network error"));
+
+                xhr.open('POST', `/api/upload/subtitles?video_filename=${encodeURIComponent(this.selectedFile.filename)}`);
+                xhr.send(formData);
+            });
+
+            alert("Subtitles uploaded successfully!");
+            this.closeContextMenu();
+            await this.loadGallery();
+        } catch (err) {
+            console.error("Subtitle upload error:", err);
+            alert("Subtitle upload failed");
+        }
+        
+        this.updateProgressUI("", 0, false);
+        this.subtitleInput.value = "";
     }
 
     async closeStream() {

@@ -187,6 +187,16 @@ class StreamManager:
                 self._active_streamer.open()
                 self._audio.open()
                 self._running = True
+                
+                # Start ASR if available
+                try:
+                    import asyncio
+                    from asr_manager import asr_manager
+                    loop = asyncio.get_event_loop()
+                    asr_manager.start(loop)
+                except Exception as e:
+                    logger.warning(f"ASR could not start: {e}")
+
                 logger.info(f"▶️ Streaming started (mode={self._active_mode})")
 
     def stop(self):
@@ -197,6 +207,13 @@ class StreamManager:
                 self._screen.release()
                 self._audio.release()
                 self._running = False
+                
+                # Stop ASR
+                try:
+                    from asr_manager import asr_manager
+                    asr_manager.stop()
+                except: pass
+
                 logger.info("⏹️ Streaming stopped")
 
     def toggle(self) -> str:
@@ -297,6 +314,12 @@ class StreamManager:
         while self._running:
             chunk = self._audio.read_chunk()
             if chunk:
+                # Feed to ASR
+                try:
+                    from asr_manager import asr_manager
+                    asr_manager.add_audio(chunk, samplerate, channels)
+                except: pass
+                
                 yield chunk
             else:
                 time.sleep(0.01)
