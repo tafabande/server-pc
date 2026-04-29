@@ -24,7 +24,7 @@ from routers.file_api import router as file_router
 from routers.doc_api import router as doc_router
 
 # Core & Workers
-from core.websockets import ws_manager
+from core.websocket_manager import ws_manager
 from workers.compression import start_worker as start_compression_worker
 from streaming import stream_manager
 

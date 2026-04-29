@@ -36,20 +36,23 @@ async def process_video_job(job_id: int, file_path_str: str):
         str(m3u8_path)
     ]
     
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    
-    await process.wait()
-    
-    if process.returncode == 0:
-        logger.info(f"Successfully generated HLS for {file_path.name}")
-        update_job_status(job_id, "completed")
-    else:
-        logger.error(f"Failed to generate HLS for {file_path.name}")
-        update_job_status(job_id, "failed")
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        await process.wait()
+        
+        if process.returncode == 0:
+            logger.info(f"Successfully generated HLS for {file_path.name}")
+            update_job_status(job_id, "completed")
+        else:
+            logger.error(f"Failed to generate HLS for {file_path.name}")
+            update_job_status(job_id, "failed")
+    except FileNotFoundError:
+        logger.error("FFmpeg not found on this system. Media optimization disabled.")
+        update_job_status(job_id, "failed_missing_ffmpeg")
 
 async def worker_loop():
     logger.info("Compression worker started. Re-queuing pending jobs...")
