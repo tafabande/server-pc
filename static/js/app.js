@@ -4,6 +4,7 @@
 
 class StreamDropApp {
     constructor() {
+        window.app = this; // Ensure global access early for any sync calls
         this.currentPath = "";
         this.allFiles = [];
         this.filteredFiles = [];
@@ -536,7 +537,7 @@ class StreamDropApp {
             const favClass = file.is_favorite ? 'active' : '';
 
             card.innerHTML = `
-                <div class="fav-btn ${favClass}" onclick="event.stopPropagation(); app.toggleFav('${file.filename}')">
+                <div class="fav-btn ${favClass}" data-filename="${file.filename}">
                     <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
                 </div>
                 <div class="card-media">
@@ -546,18 +547,36 @@ class StreamDropApp {
                 <div class="info">${file.name}</div>
             `;
 
-            card.onclick = () => {
+            // --- Use addEventListener for robust click handling ---
+            
+            // Star/Favorite button — must use stopPropagation to prevent triggering card click
+            const favBtn = card.querySelector('.fav-btn');
+            if (favBtn) {
+                favBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleFav(file.filename);
+                });
+            }
+
+            // Main card click — use addEventListener (not onclick) for consistency
+            card.addEventListener('click', (e) => {
+                // Guard: don't fire if the fav button was clicked (extra safety)
+                if (e.target.closest('.fav-btn')) return;
+                
                 if (file.type === 'stream') {
                     this.openStream();
                 } else {
                     this.handleItemClick(file);
                 }
-            };
+            });
             
-            card.oncontextmenu = (e) => {
+            // Context menu (long press / right click)
+            card.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
+                if (file.is_virtual) return; // Skip virtual items like Live Stream
                 this.openContextMenu(file);
-            };
+            });
 
             this.gallery.appendChild(card);
         });
@@ -583,22 +602,42 @@ class StreamDropApp {
 
     renderBreadcrumbs() {
         if (this.activeFilter === 'favorites') {
-            this.breadcrumbs.innerHTML = '<span class="breadcrumb-item">Favorites</span>';
+            this.breadcrumbs.innerHTML = '';
+            const span = document.createElement('span');
+            span.className = 'breadcrumb-item';
+            span.innerText = 'Favorites';
+            this.breadcrumbs.appendChild(span);
             return;
         }
 
-        const parts = this.currentPath.split('/').filter(p => p);
-        let html = `<span class="breadcrumb-item" onclick="app.navigate('')">Home</span>`;
+        this.breadcrumbs.innerHTML = '';
         
+        // Home
+        const home = document.createElement('span');
+        home.className = 'breadcrumb-item';
+        home.innerText = 'Home';
+        home.onclick = () => this.navigate('');
+        this.breadcrumbs.appendChild(home);
+
+        const parts = this.currentPath.split('/').filter(p => p);
         let pathAccumulator = "";
+        
         parts.forEach((part, i) => {
+            const separator = document.createElement('span');
+            separator.className = 'material-symbols-rounded';
+            separator.style.fontSize = '16px';
+            separator.innerText = 'chevron_right';
+            this.breadcrumbs.appendChild(separator);
+
             pathAccumulator += (i === 0 ? '' : '/') + part;
             const current = pathAccumulator;
-            html += ` <span class="material-symbols-rounded" style="font-size:16px;">chevron_right</span> `;
-            html += `<span class="breadcrumb-item" onclick="app.navigate('${current}')">${part}</span>`;
+            
+            const item = document.createElement('span');
+            item.className = 'breadcrumb-item';
+            item.innerText = part;
+            item.onclick = () => this.navigate(current);
+            this.breadcrumbs.appendChild(item);
         });
-
-        this.breadcrumbs.innerHTML = html;
     }
 
     handleItemClick(file) {
@@ -797,6 +836,8 @@ class StreamDropApp {
     // --- Favorites Logic ---
 
     async toggleFav(filename) {
+        if (filename === 'LIVE_STREAM') return; // Virtual items cannot be favorited
+        
         try {
             const response = await fetch('/api/favorites/toggle', {
                 method: 'POST',
@@ -1224,4 +1265,4 @@ class StreamDropApp {
 
 // Global instance
 const app = new StreamDropApp();
-window.app = app;
+// window.app is set inside the constructor

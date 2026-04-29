@@ -34,6 +34,9 @@ body {
   overflow-x: hidden;
 }
 
+/* CRITICAL: Generic utility class — required by editor-container, player, etc. */
+.hidden { display: none !important; }
+
 /* --- Global Progress --- */
 .global-progress-container {
     background: var(--m3-surface-container-high);
@@ -215,17 +218,28 @@ header {
 }
 
 .media-card {
-  background: var(--m3-surface-container);
+  background: var(--m3-surface-variant);
   border-radius: var(--radius-m);
   overflow: hidden;
   position: relative;
-  aspect-ratio: 1;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+  /* CRITICAL: Give the card a proper height so click targets work */
+  aspect-ratio: 4 / 3;
+}
+
+.media-card:hover {
+  background: var(--m3-secondary-container);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .media-card:active {
-  transform: scale(0.95);
+  transform: translateY(0) scale(0.98);
 }
 
 .media-card img {
@@ -236,11 +250,15 @@ header {
 
 .card-media {
   width: 100%;
-  height: 100%;
+  /* CRITICAL: Use flex:1 to fill the parent instead of height:100% which collapses */
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--m3-surface-container-high);
+  /* Ensure media area doesn't block the card's onclick */
+  pointer-events: none;
 }
 
 .folder-avatar {
@@ -270,6 +288,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Don't block card clicks */
+  pointer-events: none;
 }
 
 .media-card .info {
@@ -277,13 +297,16 @@ header {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 8px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  padding: 8px 8px 10px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
   color: white;
   font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* CRITICAL: Don't intercept clicks meant for the card */
+  pointer-events: none;
 }
 
 .fav-btn {
@@ -293,7 +316,20 @@ header {
   color: white;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
   cursor: pointer;
-  z-index: 10;
+  /* CRITICAL: Ensure star button is above everything and receives clicks */
+  z-index: 20;
+  pointer-events: auto;
+  padding: 4px;
+  border-radius: 50%;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.fav-btn:hover {
+  transform: scale(1.2);
+}
+
+.fav-btn:active {
+  transform: scale(0.9);
 }
 
 .fav-btn.active {
@@ -807,6 +843,15 @@ header {
 .text-btn:hover {
     background: rgba(208, 188, 255, 0.1);
 }
+
+/* --- Document Editor Overlay --- */
+#editor-container {
+  display: flex;
+}
+#editor-container.hidden {
+  display: none !important;
+}
+
 /* --- Live Stream Overlay --- */
 #stream-container {
   position: fixed;
