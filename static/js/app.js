@@ -39,6 +39,15 @@ class StreamDropApp {
         this.prevBtn = document.getElementById('prevBtn');
         this.nextBtn = document.getElementById('nextBtn');
         this.fullscreenBtn = document.getElementById('fullscreenBtn');
+        this.shutdownBtn = document.getElementById('shutdownBtn');
+        this.streamToggleBtn = document.getElementById('streamToggleBtn');
+
+        // New PWA Action Buttons
+        this.favBtn = document.getElementById('fav-btn');
+        this.favIcon = document.getElementById('fav-icon');
+        this.downloadBtn = document.getElementById('downloadCurrentBtn');
+        
+        this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
 
         this.init();
     }
@@ -82,6 +91,10 @@ class StreamDropApp {
         this.uploadFab.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleUpload(e));
 
+        // Server Controls
+        this.shutdownBtn.addEventListener('click', () => this.handleShutdown());
+        this.streamToggleBtn.addEventListener('click', () => this.handleStreamToggle());
+
         // Global Back Navigation
         window.addEventListener('popstate', (e) => {
             this.currentPath = e.state?.path || "";
@@ -99,6 +112,8 @@ class StreamDropApp {
         this.prevBtn.addEventListener('click', () => this.playPrev());
         this.nextBtn.addEventListener('click', () => this.playNext());
         this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+        this.favBtn.addEventListener('click', () => this.toggleLocalFavorite());
+        this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
 
         // Video State
         this.video.addEventListener('play', () => this.playIcon.innerText = 'pause');
@@ -225,14 +240,16 @@ class StreamDropApp {
             const isFolder = file.is_dir;
             const isVideo = file.type === 'video';
             
-            // Thumbnail / Icon
+            // Thumbnail / Icon / Avatar logic
             let content = '';
             if (isFolder) {
-                content = `<span class="material-symbols-rounded" style="font-size: 64px; opacity: 0.5;">folder</span>`;
-            } else if (file.thumb_url) {
-                content = `<img src="${file.thumb_url}" loading="lazy">`;
+                const initials = this.getInitials(file.name);
+                content = `<div class="folder-avatar">${initials}</div>`;
+            } else if (file.thumbnail_url) {
+                content = `<img src="${file.thumbnail_url}" loading="lazy" alt="${file.name}" onerror="this.src='/static/img/fallback.png'; this.onerror=null;">`;
             } else {
-                content = `<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">draft</span>`;
+                const icon = this.getFileIcon(file.type);
+                content = `<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">${icon}</span>`;
             }
 
             const videoOverlay = isVideo ? `<div class="icon-overlay"><span class="material-symbols-rounded">play_arrow</span></div>` : '';
@@ -242,7 +259,7 @@ class StreamDropApp {
                 <div class="fav-btn ${favClass}" onclick="event.stopPropagation(); app.toggleFav('${file.filename}')">
                     <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
                 </div>
-                <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                <div class="card-media">
                     ${content}
                 </div>
                 ${videoOverlay}
@@ -305,6 +322,7 @@ class StreamDropApp {
         this.video.src = `/api/stream/media/${encodeURIComponent(item.filename)}`;
         
         this.playerContainer.classList.remove('hidden');
+        this.updateLocalFavIcon(item.filename);
         this.video.play();
         this.resetIdleTimer();
     }
@@ -342,13 +360,27 @@ class StreamDropApp {
         }, 3000);
     }
 
-    toggleFullscreen() {
+    async toggleFullscreen() {
         if (!document.fullscreenElement) {
-            this.playerContainer.requestFullscreen().catch(err => {
+            try {
+                await this.playerContainer.requestFullscreen();
+                // Force Landscape mode on phones when entering fullscreen
+                if (screen.orientation && screen.orientation.lock) {
+                    try {
+                        await screen.orientation.lock('landscape');
+                    } catch (err) {
+                        console.log("Orientation lock not supported or allowed.", err);
+                    }
+                }
+            } catch (err) {
                 console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-            });
+            }
         } else {
             document.exitFullscreen();
+            // Return to natural orientation
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
         }
     }
 
@@ -376,24 +408,130 @@ class StreamDropApp {
         }
     }
 
+    // --- Local Favorites (Device Specific) ---
+
+    updateLocalFavIcon(filename) {
+        const isFav = this.localFavorites.includes(filename);
+        this.favIcon.innerText = isFav ? 'favorite' : 'favorite_border';
+        isFav ? this.favIcon.classList.add('filled') : this.favIcon.classList.remove('filled');
+    }
+
+    toggleLocalFavorite() {
+        const currentVid = this.currentPlaylist[this.currentVideoIndex];
+        if (!currentVid) return;
+
+        if (this.localFavorites.includes(currentVid.filename)) {
+            this.localFavorites = this.localFavorites.filter(p => p !== currentVid.filename);
+        } else {
+            this.localFavorites.push(currentVid.filename);
+        }
+        
+        localStorage.setItem('media_favorites', JSON.stringify(this.localFavorites));
+        this.updateLocalFavIcon(currentVid.filename);
+    }
+
+    downloadCurrent() {
+        const currentVid = this.currentPlaylist[this.currentVideoIndex];
+        if (!currentVid) return;
+
+        const a = document.createElement('a');
+        a.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
+        a.download = currentVid.name; 
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
     async handleUpload(e) {
         const files = e.target.files;
         if (!files.length) return;
+
+        // Show loading state on FAB
+        const originalContent = this.uploadFab.innerHTML;
+        this.uploadFab.innerHTML = `<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span>`;
+        this.uploadFab.style.pointerEvents = 'none';
 
         for (const file of files) {
             const formData = new FormData();
             formData.append('file', file);
             
             try {
-                await fetch(`/api/upload?path=${encodeURIComponent(this.currentPath)}`, {
+                const target = encodeURIComponent(this.currentPath);
+                const response = await fetch(`/api/upload?path=${target}`, {
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Upload failed with ${response.status}:`, errorText);
+                    alert(`Upload failed: ${file.name}`);
+                }
             } catch (error) {
-                console.error("Upload failed:", error);
+                console.error("Network error during upload:", error);
+                alert(`Network error during upload: ${file.name}`);
             }
         }
+        
+        this.uploadFab.innerHTML = originalContent;
+        this.uploadFab.style.pointerEvents = 'auto';
         this.fileInput.value = '';
+        // No need to manually loadGallery if WebSocket is working, 
+        // but it doesn't hurt to have a fallback if we didn't receive a signal.
+        await this.loadGallery();
+    }
+
+    // --- Helpers ---
+
+    getInitials(name) {
+        if (!name) return "??";
+        const parts = name.trim().split(/[\s_-]+/);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    }
+
+    getFileIcon(type) {
+        switch (type) {
+            case 'image': return 'image';
+            case 'video': return 'movie';
+            case 'audio': return 'music_note';
+            case 'document': return 'description';
+            case 'archive': return 'inventory_2';
+            default: return 'draft';
+        }
+    }
+
+    async handleShutdown() {
+        if (confirm("⚠️ Are you sure you want to SHUT DOWN the server? All connections will be lost.")) {
+            try {
+                await fetch('/api/shutdown', { method: 'POST' });
+                document.body.innerHTML = `
+                    <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#121212; color:white; font-family:Inter,sans-serif;">
+                        <span class="material-symbols-rounded" style="font-size:80px; color:#ffb4ab;">power_settings_new</span>
+                        <h1 style="margin-top:20px;">Server Offline</h1>
+                        <p style="opacity:0.7;">StreamDrop has been safely shut down.</p>
+                    </div>
+                `;
+            } catch (e) {
+                console.error("Shutdown failed:", e);
+            }
+        }
+    }
+
+    async handleStreamToggle() {
+        try {
+            const response = await fetch('/api/stream/toggle', { method: 'POST' });
+            const data = await response.json();
+            const icon = data.mode === 'webcam' ? 'videocam' : 'screen_share';
+            this.streamToggleBtn.querySelector('.material-symbols-rounded').innerText = icon;
+            
+            // Show toast/snack
+            console.log(`Stream mode changed to: ${data.mode}`);
+        } catch (e) {
+            console.error("Toggle failed:", e);
+        }
     }
 }
 

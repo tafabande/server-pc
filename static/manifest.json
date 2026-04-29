@@ -1,0 +1,21 @@
+{
+  "name": "LAN Media Hub",
+  "short_name": "Media Hub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141218",
+  "theme_color": "#141218",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/movie/default/192px.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/movie/default/512px.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

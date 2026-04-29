@@ -12,16 +12,36 @@
     <link rel="stylesheet" href="/static/css/m3.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💧</text></svg>">
     
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
 </head>
 <body>
 
     <div class="app-container">
         <header>
-            <div class="search-bar">
-                <span class="material-symbols-rounded">search</span>
-                <input type="text" id="searchInput" placeholder="Search files..." autocomplete="off">
-                <span class="material-symbols-rounded" id="clearSearch" style="cursor: pointer; display: none;">close</span>
+            <div class="header-top">
+                <div class="search-bar">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" id="searchInput" placeholder="Search files..." autocomplete="off">
+                    <span class="material-symbols-rounded" id="clearSearch" style="cursor: pointer; display: none;">close</span>
+                </div>
+
+                <div class="header-actions">
+                    <button class="icon-btn action-btn" id="streamToggleBtn" title="Toggle Stream Source">
+                        <span class="material-symbols-rounded">screen_share</span>
+                    </button>
+                    <button class="icon-btn action-btn danger" id="shutdownBtn" title="Force Kill Server">
+                        <span class="material-symbols-rounded">power_settings_new</span>
+                    </button>
+                </div>
             </div>
 
             <div class="filters">
@@ -64,10 +84,21 @@
         
         <div id="player-ui">
             <div class="player-top">
-                <button class="icon-btn" id="closePlayerBtn">
-                    <span class="material-symbols-rounded">arrow_back</span>
-                </button>
-                <h2 id="player-title">Video Title</h2>
+                <div class="top-left">
+                    <button class="icon-btn" id="closePlayerBtn">
+                        <span class="material-symbols-rounded">arrow_back</span>
+                    </button>
+                    <h2 id="player-title">Video Title</h2>
+                </div>
+                
+                <div class="top-right">
+                    <button class="icon-btn" id="fav-btn">
+                        <span class="material-symbols-rounded" id="fav-icon">favorite_border</span>
+                    </button>
+                    <button class="icon-btn" id="downloadCurrentBtn">
+                        <span class="material-symbols-rounded">download</span>
+                    </button>
+                </div>
             </div>
 
             <div class="player-center" id="speed-indicator">

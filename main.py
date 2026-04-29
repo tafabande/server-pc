@@ -160,6 +160,16 @@ async def root():
     return RedirectResponse(url="/static/index.html")
 
 
+@app.get("/manifest.json", include_in_schema=False)
+async def get_manifest():
+    return FileResponse(STATIC_DIR / "manifest.json")
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def get_sw():
+    return FileResponse(STATIC_DIR / "sw.js")
+
+
 # ── Routes: Auth ────────────────────────────────────────
 
 @app.post("/api/auth")
