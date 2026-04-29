@@ -1,14 +1,13 @@
-const CACHE_NAME = 'streamdrop-v4';
+const CACHE_NAME = 'streamdrop-v8';
 const ASSETS = [
     '/',
     '/static/index.html',
-    '/static/js/app.js?v=3',
-    '/static/js/editor.js?v=3',
-    '/static/css/m3.css?v=3',
+    '/static/js/app.js?v=7',
+    '/static/js/editor.js?v=7',
+    '/static/js/offline-icons.js?v=8',
+    '/static/css/m3.css?v=8',
     '/static/img/icon-192.png',
-    '/static/img/icon-512.png',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
-    'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
+    '/static/img/icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {

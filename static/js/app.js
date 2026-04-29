@@ -420,10 +420,18 @@ class StreamDropApp {
     }
 
     connectWebSocket() {
+        if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) return;
+        
+        this.isConnecting = true;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        this.ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-        ws.onmessage = (event) => {
+        this.ws.onopen = () => {
+            this.isConnecting = false;
+            console.log("WebSocket connected cleanly.");
+        };
+
+        this.ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'update') {
@@ -442,9 +450,15 @@ class StreamDropApp {
             }
         };
 
-        ws.onclose = () => {
+        this.ws.onclose = () => {
+            this.isConnecting = false;
+            this.ws = null;
             console.warn("🔌 WebSocket disconnected. Reconnecting in 3s...");
             setTimeout(() => this.connectWebSocket(), 3000);
+        };
+        
+        this.ws.onerror = (err) => {
+            if (this.ws) this.ws.close();
         };
     }
 
@@ -711,7 +725,7 @@ class StreamDropApp {
             const headResponse = await fetch(hlsUrl, { method: 'HEAD' });
             if (headResponse.ok) {
                 console.log("HLS stream found, attempting playback");
-                if (Hls.isSupported()) {
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     this.hlsPlayer = new Hls();
                     this.hlsPlayer.loadSource(hlsUrl);
                     this.hlsPlayer.attachMedia(this.video);

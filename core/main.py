@@ -156,15 +156,15 @@ async def qr_code():
 # WebSocket Endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(default="")):
-    await ws_manager.connect(websocket)
     try:
+        await ws_manager.connect(websocket)
         while True:
             data = await websocket.receive_json()
             await ws_manager.handle_message(websocket, data)
     except WebSocketDisconnect:
         await ws_manager.disconnect(websocket)
-    except Exception as e:
-        logger.warning(f"WebSocket error: {e}")
+    except Exception:
+        # Catch unexpected drops (like WinError 121) silently
         await ws_manager.disconnect(websocket)
 
 # Clipboard Endpoints

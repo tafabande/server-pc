@@ -5,6 +5,10 @@ let quill;
 let currentDocPath = "";
 
 function initEditor() {
+    if (typeof Quill === 'undefined') {
+        console.warn("Quill.js not loaded. Offline mode.");
+        return;
+    }
     quill = new Quill('#quill-editor', {
         theme: 'snow',
         placeholder: 'Start typing...',
@@ -32,7 +36,7 @@ async function openDocument(path, title) {
         const response = await fetch(`/api/docs/${encodeURIComponent(path)}`);
         if (response.ok) {
             const data = await response.json();
-            quill.setText(data.content); // Load text into editor
+            if (quill) quill.setText(data.content); // Load text into editor
             document.getElementById('editor-container').classList.remove('hidden');
         } else {
             if (window.app && app.showToast) app.showToast("Failed to load document", true);
@@ -48,7 +52,7 @@ window.openEditor = openDocument;
 
 // Save the document
 async function saveDocument() {
-    if (!currentDocPath) return;
+    if (!currentDocPath || !quill) return;
     
     const text = quill.getText();
     const saveBtn = document.getElementById('saveEditorBtn');
@@ -88,7 +92,7 @@ async function saveDocument() {
 function closeEditor() {
     document.getElementById('editor-container').classList.add('hidden');
     currentDocPath = "";
-    quill.setText('');
+    if (quill) quill.setText('');
 }
 
 document.addEventListener('DOMContentLoaded', initEditor);
