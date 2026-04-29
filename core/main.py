@@ -94,31 +94,7 @@ _start_time = time.time()
 _discovery = ServiceDiscovery()
 
 
-async def _seed_admin_user():
-    """
-    If the users table is empty, create the admin user from .env credentials.
-    This runs once on startup. After the first run, the env vars are ignored.
-    """
-    from sqlalchemy import select, func
-    from core.database import AsyncSessionFactory, User, UserRole
-    from routers.auth_api import hash_password
-    from config import ADMIN_USERNAME, ADMIN_PASSWORD
-
-    async with AsyncSessionFactory() as db:
-        result = await db.execute(select(func.count()).select_from(User))
-        count = result.scalar()
-
-        if count == 0:
-            admin = User(
-                username=ADMIN_USERNAME,
-                hashed_password=hash_password(ADMIN_PASSWORD),
-                role=UserRole.admin,
-            )
-            db.add(admin)
-            await db.commit()
-            logger.info(f"🌱 Seeded admin user: '{ADMIN_USERNAME}'")
-        else:
-            logger.info(f"👤 Found {count} existing user(s) — skipping seed.")
+# (Seeding logic moved to core.database.bootstrap_system)
 
 
 # ── Lifespan ───────────────────────────────────────────────────────────────────
@@ -126,9 +102,8 @@ async def _seed_admin_user():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    from core.database import init_db
-    await init_db()
-    await _seed_admin_user()
+    from core.database import bootstrap_system
+    await bootstrap_system()
 
     _discovery.register()
     # start_compression_worker() # Disabled in favor of core.workers

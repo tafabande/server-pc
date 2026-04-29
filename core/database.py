@@ -142,12 +142,33 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
 
-# ── Schema Creation ───────────────────────────────────────────────────────────
+# ── Schema Creation & Seeding ─────────────────────────────────────────────────
 
-async def init_db():
+async def bootstrap_system():
+    """
+    Bootstrap the system: 
+    1. Create all tables.
+    2. Seed initial admin user if none exists.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("✅ Database tables initialized.")
+    
+    # Check for existing users and seed admin if empty
+    async with AsyncSessionFactory() as db:
+        result = await db.execute(select(func.count()).select_from(User))
+        if result.scalar() == 0:
+            from config import ADMIN_USERNAME, ADMIN_PASSWORD
+            from core.security import hash_password
+            admin = User(
+                username=ADMIN_USERNAME,
+                hashed_password=hash_password(ADMIN_PASSWORD),
+                role=UserRole.admin,
+            )
+            db.add(admin)
+            await db.commit()
+            logger.info(f"🌱 Initialized database and seeded admin: '{ADMIN_USERNAME}'")
+        else:
+            logger.info("✅ Database tables verified.")
 
 # ── Logging Helpers ───────────────────────────────────────────────────────────
 
