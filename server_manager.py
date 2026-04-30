@@ -97,8 +97,18 @@ class ServerManager(ctk.CTk):
 
     def stop_server(self):
         if self.server_process:
-            self.server_process.terminate()
+            try:
+                parent = psutil.Process(self.server_process.pid)
+                for child in parent.children(recursive=True):
+                    child.terminate()
+                parent.terminate()
+                gone, alive = psutil.wait_procs(parent.children(recursive=True) + [parent], timeout=3)
+                for p in alive:
+                    p.kill()
+            except psutil.NoSuchProcess:
+                pass
             self.server_process.join()
+            self.server_process = None
         self.is_running = False
         self.btn_toggle.configure(text="Start Server", fg_color=["#3B8ED0", "#1F6AA5"], hover_color=["#32769E", "#144870"])
         self.status_indicator.configure(text="● Server Offline", text_color="#ff5555")

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db, User, UserRole, log_audit, AuditLog, MediaMetadata, PlayEvent
@@ -50,6 +50,10 @@ class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=2, max_length=64)
     password: str = Field(..., min_length=6)
     role: UserRole = UserRole.guest
+
+class UpdateUserRequest(BaseModel):
+    role: UserRole | None = None
+    is_active: bool | None = None
 
 
 class UserResponse(BaseModel):
@@ -214,24 +218,51 @@ async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db
     }
 
 
-@router.delete("/users/{user_id}", dependencies=[Depends(require_role("admin"))])
-async def deactivate_user(user_id: int, db: AsyncSession = Depends(get_db)):
-    """Deactivate a user account and invalidate all their sessions. Admin-only."""
+@router.patch("/users/{user_id}", dependencies=[Depends(require_role("admin"))])
+async def update_user(user_id: int, body: UpdateUserRequest, db: AsyncSession = Depends(get_db)):
+    """Update user role or status. Admin-only."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    user.is_active = False
-    await invalidate_all_user_sessions(user_id)
-    logger.info(f"🚫 Deactivated user: {user.username}")
+    if body.role is not None:
+        user.role = body.role
+    
+    if body.is_active is not None:
+        user.is_active = body.is_active
+        if not user.is_active:
+            await invalidate_all_user_sessions(user_id)
+
+    logger.info(f"👤 Updated user: {user.username} (active={user.is_active}, role={user.role.value})")
     await log_audit(
         db=db,
-        action_type="USER_DEACTIVATE",
+        action_type="USER_UPDATE",
         target_resource=user.username,
-        user_id=user_id
+        user_id=user_id,
+        details={"role": user.role.value, "is_active": user.is_active}
     )
-    return {"status": "ok", "message": f"User '{user.username}' deactivated."}
+    return {"status": "ok", "user": {"id": user.id, "username": user.username, "role": user.role.value, "is_active": user.is_active}}
+
+
+@router.delete("/users/{user_id}", dependencies=[Depends(require_role("admin"))])
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    """Hard delete a user. Admin-only."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    await invalidate_all_user_sessions(user_id)
+    await db.delete(user)
+    logger.info(f"🗑️ Deleted user: {user.username}")
+    await log_audit(
+        db=db,
+        action_type="USER_DELETE",
+        target_resource=user.username,
+        details={"user_id": user_id}
+    )
+    return {"status": "ok", "message": f"User '{user.username}' deleted."}
 
 
 @router.get("/users", dependencies=[Depends(require_role("admin"))])
@@ -283,14 +314,16 @@ async def get_system_stats(db: AsyncSession = Depends(get_db)):
     users_count = await db.scalar(select(func.count()).select_from(User))
     media_count = await db.scalar(select(func.count()).select_from(MediaMetadata))
     plays_count = await db.scalar(select(func.count()).select_from(PlayEvent))
+    audit_count = await db.scalar(select(func.count()).select_from(AuditLog))
     
     # Get storage stats
     result = await db.execute(select(func.sum(MediaMetadata.file_size_bytes)))
     total_bytes = result.scalar() or 0
     
     return {
-        "users": users_count,
-        "media": media_count,
-        "plays": plays_count,
-        "storage_bytes": total_bytes
+        "total_users": users_count,
+        "total_media": media_count,
+        "total_plays": plays_count,
+        "audit_count": audit_count,
+        "total_storage_bytes": total_bytes
     }

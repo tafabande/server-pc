@@ -59,98 +59,162 @@
     </div>
 
 
-    <div class="app-container">
-        <!-- Global Progress Tracker -->
-        <div id="globalProgress" class="global-progress-container hidden">
-            <div class="progress-info">
-                <span id="progressLabel">Uploading...</span>
-                <span id="progressPercent">0%</span>
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="splash-screen">
+        <div class="splash-logo">
+            <span class="material-symbols-rounded">water_drop</span>
+            <h1>StreamDrop</h1>
+        </div>
+    </div>
+
+    <!-- Action Hub Landing -->
+    <div id="action-hub" class="action-hub hidden">
+        <h1 class="hub-title">What would you like to do?</h1>
+        <div class="hub-grid">
+            <div class="hub-card" onclick="app.hubNavigate('watch')">
+                <span class="material-symbols-rounded">play_circle</span>
+                <h3>Watch Media</h3>
+                <p>Movies, TV Shows, and Streams</p>
             </div>
-            <div class="progress-track">
-                <div id="progressBar" class="progress-fill"></div>
+            <div class="hub-card" onclick="app.hubNavigate('upload')">
+                <span class="material-symbols-rounded">cloud_upload</span>
+                <h3>Send/Upload</h3>
+                <p>Share files to the network</p>
+            </div>
+            <div class="hub-card" onclick="app.hubNavigate('docs')">
+                <span class="material-symbols-rounded">description</span>
+                <h3>View Documents</h3>
+                <p>Notes, Guides, and Text</p>
             </div>
         </div>
+    </div>
 
-        <header>
-            <div class="header-top">
-                <div class="search-bar">
-                    <span class="material-symbols-rounded">search</span>
-                    <input type="text" id="searchInput" placeholder="Search files..." autocomplete="off">
-                    <span class="material-symbols-rounded" id="clearSearch" style="cursor: pointer; display: none;">close</span>
+    <div class="app-layout">
+        <nav class="side-nav">
+            <div class="nav-logo">
+                <span class="material-symbols-rounded">water_drop</span>
+                <span class="logo-text">StreamDrop</span>
+            </div>
+
+            <div class="nav-items">
+                <div class="nav-item active" data-nav="home" onclick="app.navigateToRoot()">
+                    <span class="material-symbols-rounded">home</span>
+                    <span>Home</span>
                 </div>
-
-                <div id="user-profile-chip" class="hidden" onclick="app.openProfileSettings()">
-                    <img id="user-avatar" src="" alt="Avatar">
-                    <span id="user-display-name">Loading...</span>
+                <div class="nav-item" data-nav="movies" onclick="app.filterByCategory('video')">
+                    <span class="material-symbols-rounded">movie</span>
+                    <span>Movies</span>
                 </div>
-
-                <div class="header-actions">
-                    <button class="icon-btn action-btn" id="qrCodeBtn" title="Show QR Code">
-                        <span class="material-symbols-rounded">qr_code_2</span>
-                    </button>
-                    <button class="icon-btn action-btn" id="installAppBtn" title="Install App" style="display: none;">
-                        <span class="material-symbols-rounded">download_for_offline</span>
-                    </button>
-                    <button class="icon-btn action-btn" id="streamToggleBtn" title="Toggle Stream Source">
-                        <span class="material-symbols-rounded">screen_share</span>
-                    </button>
-                    <button class="icon-btn action-btn danger" id="shutdownBtn" title="Force Kill Server">
-                        <span class="material-symbols-rounded">power_settings_new</span>
-                    </button>
+                <div class="nav-item" data-nav="tv" onclick="app.filterByCategory('tv')">
+                    <span class="material-symbols-rounded">tv</span>
+                    <span>TV Shows</span>
+                </div>
+                <div class="nav-item" data-nav="docs" onclick="app.filterByCategory('document')">
+                    <span class="material-symbols-rounded">description</span>
+                    <span>Documents</span>
+                </div>
+                <div class="nav-item" data-nav="favorites" onclick="app.showFavorites()">
+                    <span class="material-symbols-rounded">star</span>
+                    <span>Favorites</span>
                 </div>
             </div>
 
-            <div class="filters" style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; gap: 8px;">
-                    <div class="chip active" data-filter="all">
-                        <span class="material-symbols-rounded">grid_view</span>
-                        All
+            <div class="spacer"></div>
+
+            <div class="nav-footer">
+                <div class="nav-item" onclick="app.toggleTheme()">
+                    <span class="material-symbols-rounded" id="theme-icon">dark_mode</span>
+                    <span>Theme</span>
+                </div>
+                <div class="nav-item" onclick="app.openAdminPanel()" id="admin-nav-item" style="display: none;">
+                    <span class="material-symbols-rounded">admin_panel_settings</span>
+                    <span>Admin Panel</span>
+                </div>
+                <div class="nav-item" onclick="app.openProfileSettings()">
+                    <span class="material-symbols-rounded">account_circle</span>
+                    <span>Profile</span>
+                </div>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-top">
+                    <div class="search-bar">
+                        <span class="material-symbols-rounded">search</span>
+                        <input type="text" id="searchInput" placeholder="Search movies, shows, or files..." autocomplete="off">
+                        <span class="material-symbols-rounded" id="clearSearch" style="cursor: pointer; display: none;">close</span>
                     </div>
-                    <div class="chip" data-filter="favorites">
-                        <span class="material-symbols-rounded">star</span>
-                        Favorites
+
+                    <div class="header-actions">
+                        <button class="icon-btn action-btn" id="qrCodeBtn" title="Show QR Code">
+                            <span class="material-symbols-rounded">qr_code_2</span>
+                        </button>
+                        <button class="icon-btn action-btn" id="installAppBtn" title="Install App" style="display: none;">
+                            <span class="material-symbols-rounded">download_for_offline</span>
+                        </button>
+                        <button class="icon-btn action-btn" id="streamToggleBtn" title="Toggle Stream Source">
+                            <span class="material-symbols-rounded">screen_share</span>
+                        </button>
+                        <button class="icon-btn action-btn danger" id="shutdownBtn" title="Force Kill Server">
+                            <span class="material-symbols-rounded">power_settings_new</span>
+                        </button>
                     </div>
                 </div>
-                <!-- Folder Settings (Optimization) -->
-                <div class="folder-settings" id="folderSettings" style="display: none; align-items: center; gap: 8px; margin-right: 16px;">
-                    <span class="material-symbols-rounded" style="font-size: 20px; color: var(--on-surface-variant);">settings</span>
-                    <label class="switch" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--on-surface-variant);">
-                        <input type="checkbox" id="optimizeFolderToggle" style="margin-right: 8px;">
-                        Media Optimized
-                    </label>
+            </header>
+
+            <div class="app-container">
+                <!-- Global Progress Tracker -->
+                <div id="globalProgress" class="global-progress-container hidden">
+                    <div class="progress-info">
+                        <span id="progressLabel">Uploading...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="content-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <nav class="breadcrumbs" id="breadcrumbs">
+                        <!-- Dynamic breadcrumbs -->
+                    </nav>
+
+                    <div class="folder-settings" id="folderSettings" style="display: none; align-items: center; gap: 8px;">
+                        <span class="material-symbols-rounded" style="font-size: 20px; color: var(--on-surface-variant);">settings</span>
+                        <label class="switch" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--on-surface-variant);">
+                            <input type="checkbox" id="optimizeFolderToggle" style="margin-right: 8px;">
+                            Media Optimized
+                        </label>
+                    </div>
+                </div>
+
+                <div id="hero-banner" class="hidden">
+                    <div id="hero-bg" class="hero-bg-animate"></div>
+                    <div class="hero-overlay"></div>
+                    <div class="hero-content">
+                        <div class="hero-badge">Featured</div>
+                        <h1 id="hero-title">Video Title</h1>
+                        <p id="hero-meta">Ready to watch</p>
+                        <button id="hero-play-btn" class="hero-btn">
+                            <span class="material-symbols-rounded">play_arrow</span>
+                            Play Now
+                        </button>
+                    </div>
+                </div>
+
+                <div id="gallery-root">
+                    <main class="gallery" id="gallery">
+                        <!-- Dynamic gallery items -->
+                    </main>
+                </div>
+
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <span class="material-symbols-rounded">folder_open</span>
+                    <p>No files found</p>
                 </div>
             </div>
-
-            <nav class="breadcrumbs" id="breadcrumbs">
-                <!-- Dynamic breadcrumbs -->
-            </nav>
-        </header>
-
-        <div id="hero-banner" class="hidden">
-            <div id="hero-bg" class="hero-bg-animate"></div>
-            
-            <div class="hero-overlay"></div>
-            
-            <div class="hero-content">
-                <div class="hero-badge">Featured</div>
-                <h1 id="hero-title">Video Title</h1>
-                <p id="hero-meta">Ready to watch</p>
-                
-                <button id="hero-play-btn" class="hero-btn">
-                    <span class="material-symbols-rounded">play_arrow</span>
-                    Play Now
-                </button>
-            </div>
-        </div>
-
-        <main class="gallery" id="gallery">
-            <!-- Dynamic gallery items -->
         </main>
-
-        <div id="emptyState" class="empty-state" style="display: none;">
-            <span class="material-symbols-rounded">folder_open</span>
-            <p>No files found</p>
-        </div>
     </div>
 
     <!-- Hidden Upload Input -->
@@ -240,9 +304,67 @@
                     <input type="file" id="subtitle-upload" accept=".vtt,.srt" style="display: none;" onchange="app.handleOnTheFlySubtitleUpload(event)">
 
                     <div class="spacer"></div>
+                    <button class="icon-btn" id="settingsBtn" title="Settings">
+                        <span class="material-symbols-rounded">tune</span>
+                    </button>
                     <button class="icon-btn" id="fullscreenBtn">
                         <span class="material-symbols-rounded">fullscreen</span>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auto-Next Countdown Overlay -->
+        <div class="auto-next-overlay" id="autoNextOverlay">
+            <div class="auto-next-timer">
+                <svg viewBox="0 0 44 44">
+                    <circle class="timer-bg" />
+                    <circle class="timer-progress" id="autoNextProgress" />
+                </svg>
+                <span class="auto-next-seconds" id="autoNextSeconds">5</span>
+            </div>
+            <div class="auto-next-info">
+                <span class="auto-next-label">Up Next</span>
+                <span class="auto-next-title" id="autoNextTitle">Next Video</span>
+            </div>
+            <button class="auto-next-cancel" id="autoNextCancel">Cancel</button>
+        </div>
+
+        <!-- Floating Player Settings Panel -->
+        <div class="player-settings-panel" id="playerSettingsPanel">
+            <div class="settings-section">
+                <div class="settings-section-title">
+                    <span class="material-symbols-rounded">speed</span>
+                    Playback Speed
+                </div>
+                <div class="speed-chips" id="speedChips">
+                    <div class="speed-chip" data-speed="0.25">0.25×</div>
+                    <div class="speed-chip" data-speed="0.5">0.5×</div>
+                    <div class="speed-chip" data-speed="0.75">0.75×</div>
+                    <div class="speed-chip active" data-speed="1">1×</div>
+                    <div class="speed-chip" data-speed="1.25">1.25×</div>
+                    <div class="speed-chip" data-speed="1.5">1.5×</div>
+                    <div class="speed-chip" data-speed="2">2×</div>
+                </div>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="settings-section">
+                <div class="settings-toggle" id="autoPlayToggle">
+                    <span class="settings-toggle-label">
+                        <span class="material-symbols-rounded">playlist_play</span>
+                        Auto-Play Next
+                    </span>
+                    <div class="toggle-switch on" id="autoPlaySwitch"></div>
+                </div>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="settings-section">
+                <div class="settings-toggle" id="subtitlesToggle">
+                    <span class="settings-toggle-label">
+                        <span class="material-symbols-rounded">subtitles</span>
+                        Subtitles
+                    </span>
+                    <div class="toggle-switch" id="subtitlesSwitch"></div>
                 </div>
             </div>
         </div>
@@ -330,6 +452,73 @@
                 <button class="icon-btn action-btn danger" id="closeStreamBtn" title="Close Stream">
                     <span class="material-symbols-rounded">close</span>
                 </button>
+            </div>
+        </div>
+    </div>
+    <!-- Admin Panel Overlay -->
+    <div id="admin-overlay" class="admin-overlay hidden">
+        <div class="admin-dashboard">
+            <div class="admin-header">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <span class="material-symbols-rounded" style="font-size: 32px; color: var(--m3-primary);">admin_panel_settings</span>
+                    <h2 style="margin: 0;">System Administration</h2>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" onclick="app.switchAdminTab(app.currentAdminTab)" title="Refresh">
+                        <span class="material-symbols-rounded">refresh</span>
+                    </button>
+                    <button class="icon-btn" onclick="app.closeAdminPanel()">
+                        <span class="material-symbols-rounded">close</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="admin-tabs">
+                <div class="admin-tab active" data-tab="stats" onclick="app.switchAdminTab('stats')">Overview</div>
+                <div class="admin-tab" data-tab="users" onclick="app.switchAdminTab('users')">Users</div>
+                <div class="admin-tab" data-tab="audit" onclick="app.switchAdminTab('audit')">Activity Logs</div>
+            </div>
+
+            <div class="admin-content" id="admin-content">
+                <!-- Content dynamically injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Settings Overlay -->
+    <div id="profile-overlay" class="admin-overlay hidden">
+        <div class="admin-dashboard" style="max-width: 500px; height: auto; max-height: 80vh;">
+            <div class="admin-header">
+                <h2 style="margin: 0;">Account Settings</h2>
+                <button class="icon-btn" onclick="app.closeProfileSettings()">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
+            <div class="admin-content" style="display: flex; flex-direction: column; gap: 24px;">
+                <div style="text-align: center;">
+                    <img id="profile-avatar-large" src="" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 12px; border: 2px solid var(--m3-primary);">
+                    <h3 id="profile-username" style="margin: 0;">Username</h3>
+                    <p id="profile-role" style="opacity: 0.6; margin: 4px 0 0 0;"></p>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="hero-btn" onclick="app.logout()" style="background: var(--accent-red); width: 100%; justify-content: center;">
+                        <span class="material-symbols-rounded">logout</span>
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding Guide -->
+    <div id="onboarding-guide" class="onboarding-guide hidden">
+        <div class="onboarding-content">
+            <h3 id="onboarding-title">Welcome</h3>
+            <p id="onboarding-text">Let's take a quick tour.</p>
+            <div class="onboarding-actions">
+                <button class="text-btn" onclick="app.skipOnboarding()">Skip</button>
+                <button class="primary-btn" onclick="app.nextOnboardingStep()">Next</button>
             </div>
         </div>
     </div>

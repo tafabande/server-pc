@@ -16,6 +16,12 @@ class StreamDropApp {
         this.currentVideoIndex = 0;
         this.hideControlsTimeout = null;
 
+        // Auto-Next & Settings State
+        this.autoPlayEnabled = true;
+        this.autoNextCountdown = null;
+        this.autoNextInterval = null;
+        this.settingsPanelOpen = false;
+
         // UI Elements
         this.gallery = document.getElementById('gallery');
         this.searchInput = document.getElementById('searchInput');
@@ -40,12 +46,28 @@ class StreamDropApp {
         this.prevBtn = document.getElementById('prevBtn');
         this.nextBtn = document.getElementById('nextBtn');
         this.fullscreenBtn = document.getElementById('fullscreenBtn');
+        this.settingsBtn = document.getElementById('settingsBtn');
         this.shutdownBtn = document.getElementById('shutdownBtn');
         this.streamToggleBtn = document.getElementById('streamToggleBtn');
         this.installAppBtn = document.getElementById('installAppBtn');
         this.qrCodeBtn = document.getElementById('qrCodeBtn');
         this.qrModal = document.getElementById('qr-modal');
         this.closeQrBtn = document.getElementById('closeQrBtn');
+
+        // Auto-Next UI
+        this.autoNextOverlay = document.getElementById('autoNextOverlay');
+        this.autoNextProgress = document.getElementById('autoNextProgress');
+        this.autoNextSeconds = document.getElementById('autoNextSeconds');
+        this.autoNextTitle = document.getElementById('autoNextTitle');
+        this.autoNextCancel = document.getElementById('autoNextCancel');
+
+        // Settings Panel UI
+        this.playerSettingsPanel = document.getElementById('playerSettingsPanel');
+        this.speedChips = document.getElementById('speedChips');
+        this.autoPlayToggle = document.getElementById('autoPlayToggle');
+        this.autoPlaySwitch = document.getElementById('autoPlaySwitch');
+        this.subtitlesToggle = document.getElementById('subtitlesToggle');
+        this.subtitlesSwitch = document.getElementById('subtitlesSwitch');
 
         // PWA Install Prompt
         this.deferredPrompt = null;
@@ -100,9 +122,14 @@ class StreamDropApp {
         this.visibleCount = this.itemsPerPage;
         this.observer = null;
 
-        // Auth State
-        this.currentUser = null;
-        this.isSignUpMode = false;
+        // Admin State
+        this.adminOverlay = document.getElementById('admin-overlay');
+        this.adminContent = document.getElementById('admin-content');
+        this.profileOverlay = document.getElementById('profile-overlay');
+        this.adminChip = document.getElementById('admin-chip');
+
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', savedTheme);
 
         this.init();
     }
@@ -142,6 +169,8 @@ class StreamDropApp {
     }
 
     async init() {
+        this.setupThemeIcon();
+        this.initSplash();
         this.setupEventListeners();
         this.setupPlayerEvents();
         this.connectWebSocket();
@@ -212,16 +241,27 @@ class StreamDropApp {
             this.applyFilters();
         });
 
-        // Filters
-        this.filterChips.forEach(chip => {
-            chip.addEventListener('click', async () => {
-                const filter = chip.dataset.filter;
-                if (this.activeFilter === filter) return;
+        // Filters (Old chips logic - keeping for compatibility but sidebar is primary)
+        if (this.filterChips) {
+            this.filterChips.forEach(chip => {
+                chip.addEventListener('click', async () => {
+                    const filter = chip.dataset.filter;
+                    if (this.activeFilter === filter) return;
 
-                this.activeFilter = filter;
-                this.filterChips.forEach(c => c.classList.toggle('active', c === chip));
-                
-                await this.loadGallery();
+                    this.activeFilter = filter;
+                    this.filterChips.forEach(c => c.classList.toggle('active', c === chip));
+                    
+                    await this.loadGallery();
+                });
+            });
+        }
+
+        // Sidebar Active State Sync
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                navItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
             });
         });
 
@@ -294,8 +334,73 @@ class StreamDropApp {
         this.pipBtn.addEventListener('click', () => this.togglePiP());
         this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
 
-        // Video State
-        this.video.addEventListener('ended', () => this.playNext());
+        // Settings Button
+        if (this.settingsBtn) {
+            this.settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleSettingsPanel();
+            });
+        }
+
+        // Speed Chips
+        if (this.speedChips) {
+            this.speedChips.addEventListener('click', (e) => {
+                const chip = e.target.closest('.speed-chip');
+                if (!chip) return;
+                e.stopPropagation();
+                const speed = parseFloat(chip.dataset.speed);
+                this.video.playbackRate = speed;
+                this.speedChips.querySelectorAll('.speed-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                this.showToast(`Speed: ${speed}×`);
+            });
+        }
+
+        // Auto-Play Toggle
+        if (this.autoPlayToggle) {
+            this.autoPlayToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.autoPlayEnabled = !this.autoPlayEnabled;
+                this.autoPlaySwitch.classList.toggle('on', this.autoPlayEnabled);
+                this.showToast(this.autoPlayEnabled ? 'Auto-Play On' : 'Auto-Play Off');
+            });
+        }
+
+        // Subtitles Toggle
+        if (this.subtitlesToggle) {
+            this.subtitlesToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const hasTrack = this.video.textTracks && this.video.textTracks.length > 0;
+                if (hasTrack) {
+                    const isShowing = this.video.textTracks[0].mode === 'showing';
+                    this.video.textTracks[0].mode = isShowing ? 'hidden' : 'showing';
+                    this.subtitlesSwitch.classList.toggle('on', !isShowing);
+                    this.showToast(!isShowing ? 'Subtitles On' : 'Subtitles Off');
+                } else {
+                    this.showToast('No subtitle track loaded', true);
+                }
+            });
+        }
+
+        // Auto-Next Cancel
+        if (this.autoNextCancel) {
+            this.autoNextCancel.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.cancelAutoNext();
+            });
+        }
+
+        // Close settings panel when clicking outside
+        document.addEventListener('click', (e) => {
+            if (this.settingsPanelOpen && 
+                !e.target.closest('.player-settings-panel') && 
+                !e.target.closest('#settingsBtn')) {
+                this.closeSettingsPanel();
+            }
+        });
+
+        // Video State — Auto-Next on ended
+        this.video.addEventListener('ended', () => this.handleVideoEnded());
         this.video.addEventListener('timeupdate', () => {
             if (this.video.currentTime > 5) {
                 const currentVid = this.currentPlaylist[this.currentVideoIndex];
@@ -554,13 +659,16 @@ class StreamDropApp {
 
         // Add "Live Stream" card if at root
         if (!this.currentPath && !this.searchQuery && this.activeFilter === 'all') {
-            this.filteredFiles.unshift({
-                name: "Live Desktop Stream",
-                filename: "LIVE_STREAM",
-                type: "stream",
-                is_dir: false,
-                is_virtual: true
-            });
+            // Check if already present to avoid duplicates
+            if (!this.filteredFiles.find(f => f.filename === "LIVE_STREAM")) {
+                this.filteredFiles.unshift({
+                    name: "Live Desktop Stream",
+                    filename: "LIVE_STREAM",
+                    type: "stream",
+                    is_dir: false,
+                    is_virtual: true
+                });
+            }
         }
 
         this.renderGallery();
@@ -576,80 +684,27 @@ class StreamDropApp {
 
         this.emptyState.style.display = 'none';
 
-        // Get chunk
-        const chunk = this.filteredFiles.slice(0, this.visibleCount);
+        // Check if we should render Swimlanes (Root Home View)
+        if (!this.currentPath && !this.searchQuery && this.activeFilter === 'all') {
+            this.renderSwimlanes();
+            return;
+        }
+
+        // Otherwise, render standard grid
+        this.renderGrid(this.filteredFiles);
+    }
+
+    renderGrid(files) {
+        // Get chunk for infinite scroll
+        const chunk = files.slice(0, this.visibleCount);
         
         chunk.forEach(file => {
-            const card = document.createElement('div');
-            card.className = 'media-card';
-            
-            const isFolder = file.is_dir;
-            const isVideo = file.type === 'video';
-            
-            // Thumbnail / Icon / Avatar logic
-            let content = '';
-            if (isFolder) {
-                const initials = this.getInitials(file.name);
-                content = `<div class="folder-avatar">${initials}</div>`;
-            } else if (file.type === 'stream') {
-                content = `<span class="material-symbols-rounded" style="font-size: 64px; color: var(--m3-primary);">sensors</span>`;
-            } else if (file.thumbnail_url) {
-                content = `<img src="${file.thumbnail_url}" loading="lazy" alt="${file.name}" onerror="this.src='/static/img/fallback.png'; this.onerror=null;">`;
-            } else {
-                const icon = this.getFileIcon(file.type);
-                content = `<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">${icon}</span>`;
-            }
-
-            const videoOverlay = isVideo ? `<div class="icon-overlay"><span class="material-symbols-rounded">play_arrow</span></div>` : '';
-            const favClass = file.is_favorite ? 'active' : '';
-
-            card.innerHTML = `
-                <div class="fav-btn ${favClass}" data-filename="${file.filename}">
-                    <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
-                </div>
-                <div class="card-media">
-                    ${content}
-                </div>
-                ${videoOverlay}
-                <div class="info">${file.name}</div>
-            `;
-
-            // --- Use addEventListener for robust click handling ---
-            
-            // Star/Favorite button — must use stopPropagation to prevent triggering card click
-            const favBtn = card.querySelector('.fav-btn');
-            if (favBtn) {
-                favBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.toggleFav(file.filename);
-                });
-            }
-
-            // Main card click — use addEventListener (not onclick) for consistency
-            card.addEventListener('click', (e) => {
-                // Guard: don't fire if the fav button was clicked (extra safety)
-                if (e.target.closest('.fav-btn')) return;
-                
-                if (file.type === 'stream') {
-                    this.openStream();
-                } else {
-                    this.handleItemClick(file);
-                }
-            });
-            
-            // Context menu (long press / right click)
-            card.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                if (file.is_virtual) return; // Skip virtual items like Live Stream
-                this.openContextMenu(file);
-            });
-
+            const card = this.createMediaCard(file);
             this.gallery.appendChild(card);
         });
 
         // Setup Infinite Scroll Sentinel
-        if (this.visibleCount < this.filteredFiles.length) {
+        if (this.visibleCount < files.length) {
             const sentinel = document.createElement('div');
             sentinel.className = 'sentinel';
             sentinel.style.height = '20px';
@@ -665,6 +720,182 @@ class StreamDropApp {
             }, { rootMargin: '200px' });
             this.observer.observe(sentinel);
         }
+    }
+
+    renderSwimlanes() {
+        const categories = [
+            { id: 'recent', title: 'Recently Added', filter: f => !f.is_dir && f.filename !== 'LIVE_STREAM', type: 'all' },
+            { id: 'movies', title: 'Movies', filter: f => f.type === 'video' && !f.is_virtual && !f.filename.toLowerCase().includes('s0') && !f.filename.toLowerCase().includes('season'), type: 'video' },
+            { id: 'tv', title: 'TV Shows', filter: f => f.type === 'video' && (f.filename.toLowerCase().includes('s0') || f.filename.toLowerCase().includes('season')), type: 'tv' },
+            { id: 'docs', title: 'Documents', filter: f => f.type === 'document', type: 'document' },
+            { id: 'folders', title: 'Folders', filter: f => f.is_dir, type: 'all' }
+        ];
+
+        categories.forEach(cat => {
+            const items = this.filteredFiles.filter(cat.filter);
+            if (items.length === 0) return;
+
+            const section = document.createElement('section');
+            section.className = 'swimlane-section';
+            section.innerHTML = `
+                <div class="swimlane-header">
+                    <h2 class="swimlane-title">${cat.title}</h2>
+                    <span class="swimlane-count">${items.length} items</span>
+                    <div class="spacer" style="flex:1"></div>
+                    <button class="text-btn swimlane-action" onclick="app.filterByCategory('${cat.type}')">View All</button>
+                </div>
+                <div class="swimlane-container">
+                    <div class="swimlane-scroll">
+                        <!-- Items injected here -->
+                    </div>
+                </div>
+            `;
+
+            const scrollContainer = section.querySelector('.swimlane-scroll');
+            
+            // Limit swimlane items for performance
+            items.slice(0, 15).forEach(file => {
+                const card = this.createMediaCard(file);
+                scrollContainer.appendChild(card);
+            });
+
+            this.gallery.appendChild(section);
+        });
+
+        // Add Live Stream at the very top as a Hero section
+        const liveStream = this.filteredFiles.find(f => f.filename === "LIVE_STREAM");
+        if (liveStream) {
+            const liveCard = this.createMediaCard(liveStream);
+            liveCard.classList.add('live-card-featured');
+            
+            // Customize featured card internal layout
+            liveCard.innerHTML = `
+                <div class="card-media">
+                    <span class="material-symbols-rounded" style="font-size: 120px; color: var(--m3-primary);">sensors</span>
+                </div>
+                <div class="featured-info">
+                    <div class="badge">LIVE</div>
+                    <h1 class="featured-title">Desktop Stream</h1>
+                    <p class="featured-desc">Stream your desktop audio and video to any device on the network instantly.</p>
+                    <button class="primary-btn" style="margin-top: 24px; padding: 16px 32px; border-radius: 32px;">
+                        <span class="material-symbols-rounded">play_arrow</span>
+                        Watch Now
+                    </button>
+                </div>
+            `;
+            this.gallery.prepend(liveCard);
+        }
+    }
+
+    createMediaCard(file) {
+        const card = document.createElement('div');
+        card.className = 'media-card';
+        
+        const isFolder = file.is_dir;
+        const isVideo = file.type === 'video';
+        const displayName = this.cleanFilename(file.name);
+        
+        let content = '';
+        if (isFolder) {
+            const initials = this.getInitials(file.name);
+            content = `<div class="folder-avatar">${initials}</div>`;
+        } else if (file.type === 'stream') {
+            content = `<span class="material-symbols-rounded" style="font-size: 64px; color: var(--m3-primary);">sensors</span>`;
+        } else if (file.thumbnail_url) {
+            content = `<img src="${file.thumbnail_url}" loading="lazy" alt="${file.name}" onerror="this.src='/static/img/fallback.png'; this.onerror=null;">`;
+        } else {
+            const icon = this.getFileIcon(file.type);
+            content = `<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">${icon}</span>`;
+        }
+
+        const videoOverlay = isVideo ? `<div class="icon-overlay"><span class="material-symbols-rounded">play_arrow</span></div>` : '';
+        const favClass = file.is_favorite ? 'active' : '';
+
+        // --- Build Glanceable Metadata Tags ---
+        const metaTags = [];
+        
+        // Type tag
+        const typeIcons = { video: 'movie', audio: 'music_note', image: 'image', document: 'description', archive: 'inventory_2' };
+        const typeClass = isFolder ? 'type-folder' : `type-${file.type === 'document' ? 'doc' : file.type}`;
+        const typeLabel = isFolder ? 'Folder' : (file.type || 'File');
+        const typeIcon = isFolder ? 'folder' : (typeIcons[file.type] || 'draft');
+        metaTags.push(`<span class="meta-tag ${typeClass}"><span class="material-symbols-rounded">${typeIcon}</span>${typeLabel}</span>`);
+
+        // File extension tag
+        if (!isFolder && file.name) {
+            const ext = file.name.split('.').pop();
+            if (ext && ext.length <= 5 && ext !== file.name) {
+                metaTags.push(`<span class="meta-tag type-ext">.${ext.toUpperCase()}</span>`);
+            }
+        }
+
+        // Size tag
+        if (file.size && !isFolder) {
+            metaTags.push(`<span class="meta-tag type-size"><span class="material-symbols-rounded">straighten</span>${file.size}</span>`);
+        }
+
+        // Duration tag for videos (if available)
+        if (file.duration) {
+            metaTags.push(`<span class="meta-tag type-video"><span class="material-symbols-rounded">schedule</span>${file.duration}</span>`);
+        }
+
+        const metaOverlay = `
+            <div class="card-meta-overlay">
+                <div class="meta-tags">${metaTags.join('')}</div>
+                <div class="meta-title">${displayName}</div>
+                ${file.size ? `<div class="meta-subtitle">${file.size} • ${file.type || 'File'}</div>` : ''}
+            </div>
+        `;
+
+        card.innerHTML = `
+            <div class="fav-btn ${favClass}" data-filename="${file.filename}">
+                <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
+            </div>
+            <div class="card-media">
+                ${content}
+            </div>
+            ${videoOverlay}
+            ${metaOverlay}
+            <div class="info">
+                <div class="title">${displayName}</div>
+                <div class="subtitle">${file.size || (isFolder ? 'Folder' : file.type)}</div>
+            </div>
+        `;
+
+        const favBtn = card.querySelector('.fav-btn');
+        if (favBtn) {
+            favBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleFav(file.filename);
+            });
+        }
+
+        // Mobile tap: toggle metadata overlay
+        let tapTimeout = null;
+        card.addEventListener('touchstart', () => {
+            tapTimeout = setTimeout(() => {
+                card.classList.toggle('meta-active');
+            }, 300);
+        }, { passive: true });
+        card.addEventListener('touchend', () => clearTimeout(tapTimeout), { passive: true });
+
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.fav-btn')) return;
+            if (file.type === 'stream') {
+                this.openStream();
+            } else {
+                this.handleItemClick(file);
+            }
+        });
+        
+        card.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (file.is_virtual) return;
+            this.openContextMenu(file);
+        });
+
+        return card;
     }
 
     renderBreadcrumbs() {
@@ -728,8 +959,156 @@ class StreamDropApp {
     navigate(path) {
         this.currentPath = path;
         this.activeFilter = 'all';
-        this.filterChips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+        this.categoryFilter = null;
+        this.updateSidebarActive(path ? null : 'home');
         this.loadGallery();
+    }
+
+    navigateToRoot() {
+        this.currentPath = "";
+        this.activeFilter = "all";
+        this.categoryFilter = null;
+        this.updateSidebarActive('home');
+        this.loadGallery();
+    }
+
+    setupThemeIcon() {
+        const icon = document.getElementById('theme-icon');
+        if (icon) {
+            icon.innerText = document.body.getAttribute('data-theme') === 'light' ? 'light_mode' : 'dark_mode';
+        }
+    }
+
+    toggleTheme() {
+        const body = document.body;
+        const isDark = body.getAttribute('data-theme') !== 'light';
+        const newTheme = isDark ? 'light' : 'dark';
+        body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        this.setupThemeIcon();
+    }
+
+    initSplash() {
+        const splash = document.getElementById('splash-screen');
+        const actionHub = document.getElementById('action-hub');
+        const appLayout = document.querySelector('.app-layout');
+
+        if (appLayout) appLayout.style.display = 'none';
+
+        if (splash) {
+            setTimeout(() => {
+                splash.classList.add('hidden');
+                setTimeout(() => {
+                    splash.style.display = 'none';
+                    if (actionHub) actionHub.classList.remove('hidden');
+                }, 500);
+            }, 2000);
+        } else {
+            if (actionHub) actionHub.classList.remove('hidden');
+        }
+    }
+
+    hubNavigate(action) {
+        const actionHub = document.getElementById('action-hub');
+        const appLayout = document.querySelector('.app-layout');
+        
+        if (actionHub) {
+            actionHub.classList.add('hidden');
+            setTimeout(() => {
+                actionHub.style.display = 'none';
+                if (appLayout) {
+                    appLayout.style.display = 'flex';
+                }
+                
+                switch(action) {
+                    case 'watch':
+                        this.navigateToRoot();
+                        break;
+                    case 'upload':
+                        this.navigateToRoot();
+                        this.fileInput.click();
+                        break;
+                    case 'docs':
+                        this.filterByCategory('document');
+                        break;
+                }
+
+                if (!localStorage.getItem('onboardingCompleted')) {
+                    this.startOnboarding();
+                }
+            }, 500);
+        }
+    }
+
+    startOnboarding() {
+        this.onboardingStep = 0;
+        this.onboardingSteps = [
+            { title: 'Welcome', text: 'Welcome to StreamDrop! This hub lets you manage all your media.' },
+            { title: 'Navigation', text: 'Use the sidebar to filter between Movies, TV Shows, and Documents.' },
+            { title: 'Upload', text: 'Click the + button or Send/Upload to add files to your library.' }
+        ];
+        
+        const guide = document.getElementById('onboarding-guide');
+        if (guide) {
+            guide.classList.remove('hidden');
+            this.updateOnboardingUI();
+        }
+    }
+
+    updateOnboardingUI() {
+        const step = this.onboardingSteps[this.onboardingStep];
+        const title = document.getElementById('onboarding-title');
+        const text = document.getElementById('onboarding-text');
+        if (title) title.innerText = step.title;
+        if (text) text.innerText = step.text;
+    }
+
+    nextOnboardingStep() {
+        if (this.onboardingStep < this.onboardingSteps.length - 1) {
+            this.onboardingStep++;
+            this.updateOnboardingUI();
+        } else {
+            this.skipOnboarding();
+        }
+    }
+
+    skipOnboarding() {
+        const guide = document.getElementById('onboarding-guide');
+        if (guide) guide.classList.add('hidden');
+        localStorage.setItem('onboardingCompleted', 'true');
+    }
+
+    async filterByCategory(category) {
+        this.currentPath = ""; // Go back to root for categories
+        this.activeFilter = "all";
+        this.categoryFilter = category;
+        this.updateSidebarActive(category === 'video' ? 'movies' : (category === 'tv' ? 'tv' : 'docs'));
+        
+        await this.loadGallery();
+        
+        // Post-process allFiles to only show selected category
+        if (category === 'tv') {
+            this.filteredFiles = this.allFiles.filter(f => f.type === 'video' && (f.filename.toLowerCase().includes('s0') || f.filename.toLowerCase().includes('season')));
+        } else if (category === 'video') {
+            this.filteredFiles = this.allFiles.filter(f => f.type === 'video');
+        } else if (category === 'document') {
+            this.filteredFiles = this.allFiles.filter(f => f.type === 'document');
+        }
+        
+        this.renderGallery();
+    }
+
+    showFavorites() {
+        this.activeFilter = 'favorites';
+        this.categoryFilter = null;
+        this.updateSidebarActive('favorites');
+        this.loadGallery();
+    }
+
+    updateSidebarActive(navId) {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.nav === navId);
+        });
     }
 
     // --- Player Logic ---
@@ -737,6 +1116,8 @@ class StreamDropApp {
     async openPlayer(index) {
         if (index < 0 || index >= this.currentPlaylist.length) return;
         
+        this.cancelAutoNext();
+        this.closeSettingsPanel();
         this.currentVideoIndex = index;
         const item = this.currentPlaylist[index];
         
@@ -805,6 +1186,8 @@ class StreamDropApp {
     }
 
     closePlayer() {
+        this.cancelAutoNext();
+        this.closeSettingsPanel();
         if (this.hlsPlayer) {
             this.hlsPlayer.destroy();
             this.hlsPlayer = null;
@@ -881,7 +1264,93 @@ class StreamDropApp {
         clearTimeout(this.hideControlsTimeout);
         this.hideControlsTimeout = setTimeout(() => {
             if (!this.video.paused) this.playerContainer.classList.add('idle');
-        }, 3000);
+        }, 2500);
+    }
+
+    // --- Auto-Next Countdown System ---
+    handleVideoEnded() {
+        // Clear saved resume time
+        const currentVid = this.currentPlaylist[this.currentVideoIndex];
+        if (currentVid) {
+            localStorage.removeItem(`resume_${currentVid.filename}`);
+        }
+
+        if (!this.autoPlayEnabled || this.currentVideoIndex >= this.currentPlaylist.length - 1) {
+            // No next video or auto-play disabled
+            return;
+        }
+
+        const nextIndex = this.currentVideoIndex + 1;
+        const nextItem = this.currentPlaylist[nextIndex];
+        if (!nextItem) return;
+
+        // Show countdown overlay
+        this.autoNextTitle.innerText = this.cleanFilename(nextItem.name);
+        this.autoNextOverlay.classList.add('visible');
+
+        const COUNTDOWN_SECONDS = 7;
+        const CIRCLE_CIRCUMFERENCE = 113.1; // 2 * PI * 18
+        let remaining = COUNTDOWN_SECONDS;
+
+        this.autoNextSeconds.innerText = remaining;
+        this.autoNextProgress.style.strokeDashoffset = '0';
+
+        this.autoNextInterval = setInterval(() => {
+            remaining -= 0.1;
+            const progress = 1 - (remaining / COUNTDOWN_SECONDS);
+            this.autoNextProgress.style.strokeDashoffset = (progress * CIRCLE_CIRCUMFERENCE).toString();
+            this.autoNextSeconds.innerText = Math.ceil(remaining);
+
+            if (remaining <= 0) {
+                this.cancelAutoNext();
+                this.openPlayer(nextIndex);
+            }
+        }, 100);
+    }
+
+    cancelAutoNext() {
+        if (this.autoNextInterval) {
+            clearInterval(this.autoNextInterval);
+            this.autoNextInterval = null;
+        }
+        if (this.autoNextOverlay) {
+            this.autoNextOverlay.classList.remove('visible');
+        }
+    }
+
+    // --- Floating Settings Panel ---
+    toggleSettingsPanel() {
+        if (this.settingsPanelOpen) {
+            this.closeSettingsPanel();
+        } else {
+            this.openSettingsPanel();
+        }
+    }
+
+    openSettingsPanel() {
+        this.settingsPanelOpen = true;
+        this.playerSettingsPanel.classList.add('visible');
+        
+        // Sync current state
+        this.autoPlaySwitch.classList.toggle('on', this.autoPlayEnabled);
+        
+        // Sync speed chips
+        const currentSpeed = this.video.playbackRate;
+        this.speedChips.querySelectorAll('.speed-chip').forEach(chip => {
+            chip.classList.toggle('active', parseFloat(chip.dataset.speed) === currentSpeed);
+        });
+
+        // Sync subtitle state
+        const hasTrack = this.video.textTracks && this.video.textTracks.length > 0;
+        const isShowing = hasTrack && this.video.textTracks[0].mode === 'showing';
+        this.subtitlesSwitch.classList.toggle('on', isShowing);
+
+        this.resetIdleTimer();
+    }
+
+    closeSettingsPanel() {
+        this.settingsPanelOpen = false;
+        this.playerSettingsPanel.classList.remove('visible');
     }
 
     async toggleFullscreen() {
@@ -1445,9 +1914,24 @@ class StreamDropApp {
 
     updateUserUI() {
         if (!this.currentUser) return;
+        
+        // Header Profile Chip
         document.getElementById('user-display-name').innerText = this.currentUser.display_name || this.currentUser.username;
-        document.getElementById('user-avatar').src = this.currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${this.currentUser.username}`;
+        const avatarUrl = this.currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${this.currentUser.username}`;
+        document.getElementById('user-avatar').src = avatarUrl;
         document.getElementById('user-profile-chip').classList.remove('hidden');
+
+        // Admin Chip Visibility
+        if (this.currentUser.role === 'admin') {
+            this.adminChip.classList.remove('hidden');
+        } else {
+            this.adminChip.classList.add('hidden');
+        }
+
+        // Profile Overlay Sync
+        document.getElementById('profile-avatar-large').src = avatarUrl;
+        document.getElementById('profile-username').innerText = this.currentUser.display_name || this.currentUser.username;
+        document.getElementById('profile-role').innerText = this.currentUser.role.toUpperCase();
     }
 
     toggleAuthMode() {
@@ -1529,8 +2013,329 @@ class StreamDropApp {
     }
 
     openProfileSettings() {
-        if (confirm(`Logged in as ${this.currentUser.username}. Logout?`)) {
-            this.logout();
+        this.profileOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    closeProfileSettings() {
+        this.profileOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    // --- Admin Dashboard Logic ---
+
+    openAdminPanel() {
+        this.adminOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        this.switchAdminTab('stats');
+    }
+
+    closeAdminPanel() {
+        this.adminOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    async switchAdminTab(tab) {
+        this.currentAdminTab = tab;
+        // Update active tab UI
+        document.querySelectorAll('.admin-tab').forEach(el => {
+            el.classList.toggle('active', el.dataset.tab === tab);
+        });
+
+        this.adminContent.innerHTML = `<div style="display:flex; justify-content:center; padding:40px;"><span class="material-symbols-rounded" style="animation:spin 1s linear infinite; font-size:32px;">sync</span></div>`;
+
+        try {
+            if (tab === 'stats') await this.renderAdminStats();
+            else if (tab === 'users') await this.renderAdminUsers();
+            else if (tab === 'audit') await this.renderAdminLogs();
+        } catch (err) {
+            this.adminContent.innerHTML = `<div style="text-align:center; padding:40px; color:var(--accent-red);">Failed to load ${tab}. Check permissions.</div>`;
+        }
+    }
+
+    async renderAdminStats() {
+        const res = await fetch('/api/auth/stats');
+        const data = await res.json();
+        
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        this.adminContent.innerHTML = `
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <span class="material-symbols-rounded">person</span>
+                    <div class="stat-value">${data.total_users}</div>
+                    <div class="stat-label">Total Users</div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-symbols-rounded">movie</span>
+                    <div class="stat-value">${data.total_media}</div>
+                    <div class="stat-label">Media Files</div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-symbols-rounded">play_circle</span>
+                    <div class="stat-value">${data.total_plays}</div>
+                    <div class="stat-label">Total Plays</div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-symbols-rounded">storage</span>
+                    <div class="stat-value">${formatBytes(data.total_storage_bytes)}</div>
+                    <div class="stat-label">Storage Used</div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-symbols-rounded">history</span>
+                    <div class="stat-value">${data.audit_count}</div>
+                    <div class="stat-label">Audit Logs</div>
+                </div>
+            </div>
+            
+            <h3 style="margin: 24px 0 16px;">System Health</h3>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Platform</td><td>${navigator.platform}</td></tr>
+                        <tr><td>Browser</td><td>${navigator.userAgent.split(' ').pop()}</td></tr>
+                        <tr><td>Connection</td><td>${navigator.onLine ? 'Online' : 'Offline'}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    async renderAdminLogs() {
+        const res = await fetch('/api/auth/audit');
+        const data = await res.json();
+        const logs = data.logs || [];
+        
+        const getActionClass = (action) => {
+            if (action.includes('DELETE') || action.includes('DEACTIVATE')) return 'badge-danger';
+            if (action.includes('CREATE') || action.includes('REGISTER') || action === 'LOGIN') return 'badge-success';
+            if (action.includes('UPDATE') || action.includes('EDIT')) return 'badge-warning';
+            return 'badge-info';
+        };
+
+        const rows = logs.map(log => `
+            <tr class="log-row">
+                <td>${new Date(log.timestamp).toLocaleString()}</td>
+                <td><span class="badge ${getActionClass(log.action)}">${log.action}</span></td>
+                <td><div style="font-weight:600;">${log.user}</div></td>
+                <td><div style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:0.8;">${log.resource || '-'}</div></td>
+                <td>
+                    <div class="log-details" onclick="this.classList.toggle('expanded')">
+                        ${log.details ? JSON.stringify(log.details) : '-'}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        this.adminContent.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0;">Activity Audit</h3>
+                <div class="search-box" style="max-width:300px;">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" placeholder="Filter logs..." oninput="app.filterAdminLogs(this.value)">
+                </div>
+            </div>
+            <div class="admin-table-container">
+                <table class="admin-table" id="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Resource</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="5" style="text-align:center;">No activity logs found.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    filterAdminLogs(query) {
+        const q = query.toLowerCase();
+        const rows = document.querySelectorAll('#audit-table tbody tr.log-row');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(q) ? '' : 'none';
+        });
+    }
+
+    async renderAdminUsers() {
+        const res = await fetch('/api/auth/users');
+        const data = await res.json();
+        const users = data.users || [];
+        
+        const rows = users.map(u => `
+            <tr data-user-id="${u.id}">
+                <td>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:32px; height:32px; border-radius:50%; background:var(--m3-primary-container); color:var(--m3-on-primary-container); display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:12px;">
+                            ${u.username.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                            <div>${u.username} ${u.id === this.currentUser.id ? '<span style="font-size:10px; opacity:0.5;">(YOU)</span>' : ''}</div>
+                            <div style="font-size:12px; opacity:0.6;">Last login: ${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <select class="admin-select" onchange="app.changeUserRole(${u.id}, this.value)" ${u.id === this.currentUser.id ? 'disabled' : ''}>
+                        <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>Guest</option>
+                        <option value="family" ${u.role === 'family' ? 'selected' : ''}>Family</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                </td>
+                <td>
+                    <span class="badge ${u.is_active ? 'active' : 'inactive'}">${u.is_active ? 'Active' : 'Disabled'}</span>
+                </td>
+                <td>
+                    <div style="display:flex; gap:8px;">
+                        <button class="icon-btn ${u.is_active ? 'danger' : 'success'}" 
+                                onclick="app.toggleUserActive(${u.id}, ${u.is_active})" 
+                                title="${u.is_active ? 'Deactivate' : 'Activate'}"
+                                ${u.id === this.currentUser.id ? 'disabled' : ''}>
+                            <span class="material-symbols-rounded">${u.is_active ? 'block' : 'check_circle'}</span>
+                        </button>
+                        <button class="icon-btn danger" 
+                                onclick="app.deleteUser(${u.id}, '${u.username}')" 
+                                title="Delete User"
+                                ${u.id === this.currentUser.id ? 'disabled' : ''}>
+                            <span class="material-symbols-rounded">delete</span>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        this.adminContent.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0;">User Accounts</h3>
+                <button class="hero-btn" onclick="app.showCreateUserModal()" style="padding: 8px 16px; font-size:13px;">
+                    <span class="material-symbols-rounded" style="font-size:18px;">person_add</span>
+                    Create User
+                </button>
+            </div>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="4" style="text-align:center;">No users found.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    async toggleUserActive(userId, currentStatus) {
+        try {
+            const res = await fetch(`/api/auth/users/${userId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: !currentStatus })
+            });
+            if (res.ok) {
+                this.showToast(currentStatus ? "User deactivated" : "User activated");
+                this.renderAdminUsers();
+            } else {
+                const err = await res.json();
+                this.showToast(err.detail || "Action failed", "error");
+            }
+        } catch (e) {
+            this.showToast("Network error", "error");
+        }
+    }
+
+    async changeUserRole(userId, newRole) {
+        try {
+            const res = await fetch(`/api/auth/users/${userId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole })
+            });
+            if (res.ok) {
+                this.showToast(`Role updated to ${newRole}`);
+                this.renderAdminUsers();
+            } else {
+                const err = await res.json();
+                this.showToast(err.detail || "Role update failed", "error");
+            }
+        } catch (e) {
+            this.showToast("Network error", "error");
+        }
+    }
+
+    async deleteUser(userId, username) {
+        if (!confirm(`Are you sure you want to PERMANENTLY delete user "${username}"? This cannot be undone.`)) return;
+        
+        try {
+            const res = await fetch(`/api/auth/users/${userId}`, { method: 'DELETE' });
+            if (res.ok) {
+                this.showToast("User deleted successfully");
+                this.renderAdminUsers();
+            } else {
+                const err = await res.json();
+                this.showToast(err.detail || "Delete failed", "error");
+            }
+        } catch (e) {
+            this.showToast("Network error", "error");
+        }
+    }
+
+    showCreateUserModal() {
+        const username = prompt("Enter new username:");
+        if (!username) return;
+        const password = prompt("Enter password (min 6 chars):");
+        if (!password || password.length < 6) {
+            this.showToast("Invalid password", "error");
+            return;
+        }
+        const role = prompt("Enter role (guest/family/admin):", "guest");
+        if (!['guest', 'family', 'admin'].includes(role)) {
+            this.showToast("Invalid role", "error");
+            return;
+        }
+
+        this.createUser(username, password, role);
+    }
+
+    async createUser(username, password, role) {
+        try {
+            const res = await fetch('/api/auth/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role })
+            });
+            if (res.ok) {
+                this.showToast("User created successfully");
+                this.renderAdminUsers();
+            } else {
+                const err = await res.json();
+                this.showToast(err.detail || "Creation failed", "error");
+            }
+        } catch (e) {
+            this.showToast("Network error", "error");
         }
     }
 
