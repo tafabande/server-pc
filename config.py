@@ -43,18 +43,13 @@ else:
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# ── Authentication ─────────────────────────────────────
-# Legacy PIN (kept for backwards-compat during transition)
-PIN = os.getenv("PIN", "1234")
-
+# ── Authentication ─────────────────────────────────────────
 # Admin credentials — used to seed the first admin user on startup
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
 # JWT Configuration
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
-
-SESSION_EXPIRY_HOURS = JWT_EXPIRE_HOURS  # alias for legacy code
 
 # RBAC path restriction for guest role
 # Guests are confined to this subpath of SHARED_FOLDER (default: no restriction)

@@ -22,9 +22,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from config import HOST, PORT, SHARED_FOLDER, STATIC_DIR, LOG_DIR, TRANSCODE_DIR
 from core.security import auth_middleware
@@ -265,26 +262,3 @@ def shutdown_server():
     threading.Thread(target=suicide, daemon=True).start()
     return {"status": "ok", "message": "Shutting down"}
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _kill_process_on_port(port: int):
-    import os, subprocess
-    try:
-        if os.name == "nt":
-            result = subprocess.check_output(
-                f"netstat -ano | findstr :{port}", shell=True
-            ).decode()
-            for line in result.strip().split("\n"):
-                parts = line.strip().split()
-                if len(parts) >= 5 and parts[1].endswith(f":{port}"):
-                    pid = parts[-1]
-                    if pid and pid != "0":
-                        subprocess.call(
-                            f"taskkill /F /PID {pid}",
-                            shell=True,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-    except Exception:
-        pass

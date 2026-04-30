@@ -100,6 +100,10 @@ class StreamDropApp {
         this.visibleCount = this.itemsPerPage;
         this.observer = null;
 
+        // Auth State
+        this.currentUser = null;
+        this.isSignUpMode = false;
+
         this.init();
     }
 
@@ -141,6 +145,7 @@ class StreamDropApp {
         this.setupEventListeners();
         this.setupPlayerEvents();
         this.connectWebSocket();
+        await this.verifyAuth();
         await this.loadGallery();
         this.setupPWA();
         this.handleInitialAction();
@@ -233,6 +238,16 @@ class StreamDropApp {
         this.closeStreamBtn.onclick = () => this.closeStream();
         this.streamModeBtn.onclick = () => this.handleStreamToggle();
 
+        // Auth Modal Enter Key support
+        const authModal = document.getElementById('auth-modal');
+        if (authModal) {
+            authModal.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.submitAuth();
+                }
+            });
+        }
+
         // Global Back Navigation
         window.addEventListener('popstate', (e) => {
             this.currentPath = e.state?.path || "";
@@ -243,7 +258,7 @@ class StreamDropApp {
         document.getElementById('renameOption').onclick = () => this.showRenameDialog();
         document.getElementById('subtitleOption').onclick = () => this.subtitleInput.click();
         document.getElementById('deleteOption').onclick = () => this.handleDelete();
-        this.subtitleInput.onchange = (e) => this.handleSubtitleUpload(e);
+        this.subtitleInput.onchange = (e) => this.handleSubtitleUploadForVideo(e);
         this.sheetOverlay.onclick = () => this.closeContextMenu();
         
         // Rename Dialog Actions
@@ -495,9 +510,7 @@ class StreamDropApp {
             // Build current playlist (only videos)
             this.currentPlaylist = this.allFiles.filter(f => f.type === 'video');
             
-            if (typeof updateHeroBanner === 'function') {
-                updateHeroBanner(this.allFiles);
-            }
+            this.updateHeroBanner(this.allFiles);
 
             if (pushState && this.activeFilter === 'all') {
                 history.pushState({ path: this.currentPath }, '', `?path=${this.currentPath}`);
@@ -1239,7 +1252,7 @@ class StreamDropApp {
         event.target.value = ''; 
     }
 
-    async handleSubtitleUpload(e) {
+    async handleSubtitleUploadForVideo(e) {
         const file = e.target.files[0];
         if (!file || !this.selectedFile) return;
 
@@ -1268,12 +1281,12 @@ class StreamDropApp {
                 xhr.send(formData);
             });
 
-            alert("Subtitles uploaded successfully!");
+            this.showToast("Subtitles uploaded successfully!");
             this.closeContextMenu();
             await this.loadGallery();
         } catch (err) {
             console.error("Subtitle upload error:", err);
-            alert("Subtitle upload failed");
+            this.showToast("Subtitle upload failed", true);
         }
         
         this.updateProgressUI("", 0, false);
@@ -1406,190 +1419,134 @@ class StreamDropApp {
                 await this.loadGallery();
             } else {
                 const err = await response.json();
-                alert(err.detail || "Rename failed");
+                this.showToast(err.detail || "Rename failed", true);
             }
         } catch (e) {
             console.error("Rename failed:", e);
+        }
+    }
+
+    // --- Auth Logic ---
+
+    async verifyAuth() {
+        try {
+            const res = await fetch('/api/auth/verify');
+            if (res.ok) {
+                this.currentUser = await res.json();
+                this.updateUserUI();
+                document.getElementById('auth-modal').style.display = 'none';
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+            }
+        } catch (error) {
+            console.error("Auth verification failed", error);
+        }
+    }
+
+    updateUserUI() {
+        if (!this.currentUser) return;
+        document.getElementById('user-display-name').innerText = this.currentUser.display_name || this.currentUser.username;
+        document.getElementById('user-avatar').src = this.currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${this.currentUser.username}`;
+        document.getElementById('user-profile-chip').classList.remove('hidden');
+    }
+
+    toggleAuthMode() {
+        this.isSignUpMode = !this.isSignUpMode;
+        document.getElementById('auth-title').innerText = this.isSignUpMode ? "Create Account" : "Welcome Back";
+        document.getElementById('auth-action-btn').innerText = this.isSignUpMode ? "Sign Up" : "Login";
+        document.getElementById('auth-switch-text').innerText = this.isSignUpMode ? "Already have an account? Login." : "New here? Sign up instead.";
+    }
+
+    async submitAuth() {
+        const user = document.getElementById('auth-username').value;
+        const pass = document.getElementById('auth-password').value;
+        
+        if (!user || !pass) return this.showToast("Please fill all fields", true);
+        
+        const endpoint = this.isSignUpMode ? "/api/auth/register" : "/api/auth/login";
+        
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            
+            if (response.ok) {
+                this.showToast(this.isSignUpMode ? "Account created!" : "Logged in successfully!");
+                await this.verifyAuth();
+                await this.loadGallery(); 
+            } else {
+                const data = await response.json();
+                this.showToast(data.detail || "Authentication failed", true);
+            }
+        } catch (err) {
+            this.showToast("Network error during authentication", true);
+        }
+    }
+
+    toggleCCMenu() {
+        const menu = document.getElementById('cc-menu');
+        if (menu) menu.classList.toggle('hidden');
+    }
+
+    setSubtitles(enable) {
+        if (this.video && this.video.textTracks && this.video.textTracks.length > 0) {
+            this.video.textTracks[0].mode = enable ? 'showing' : 'hidden';
+            this.showToast(enable ? "Subtitles On" : "Subtitles Off");
+        } else if (enable) {
+            this.showToast("No subtitle track loaded", true);
+        }
+        const menu = document.getElementById('cc-menu');
+        if (menu) menu.classList.add('hidden');
+    }
+
+    updateHeroBanner(files) {
+        const hero = document.getElementById('hero-banner');
+        if (!hero) return;
+
+        const videos = files.filter(f => f.type === 'video');
+        if (videos.length === 0) {
+            hero.classList.add('hidden');
+            return;
+        }
+
+        // Use the first video or a random one as featured
+        const featured = videos[0];
+        document.getElementById('hero-title').innerText = this.cleanFilename(featured.name);
+        document.getElementById('hero-meta').innerText = `Ready to watch in ${this.currentPath || 'Home'}`;
+        
+        if (featured.thumbnail_url) {
+            document.getElementById('hero-bg').style.backgroundImage = `url(${featured.thumbnail_url})`;
+        }
+
+        document.getElementById('hero-play-btn').onclick = () => {
+            const index = this.currentPlaylist.findIndex(v => v.filename === featured.filename);
+            this.openPlayer(index);
+        };
+
+        hero.classList.remove('hidden');
+    }
+
+    openProfileSettings() {
+        if (confirm(`Logged in as ${this.currentUser.username}. Logout?`)) {
+            this.logout();
+        }
+    }
+
+    async logout() {
+        try {
+            const res = await fetch('/api/auth/logout', { method: 'POST' });
+            if (res.ok) {
+                this.currentUser = null;
+                this.showToast("Logged out");
+                location.reload(); // Simplest way to reset state
+            }
+        } catch (error) {
+            console.error("Logout failed", error);
         }
     }
 }
 
 // Global instance
 const app = new StreamDropApp();
-// window.app is set inside the constructor
-
-// --- Hero Banner Logic ---
-function updateHeroBanner(items) {
-    const heroBanner = document.getElementById('hero-banner');
-    if (!heroBanner) return;
-    
-    const videos = items.filter(item => 
-        !item.is_dir && 
-        (item.name.endsWith('.mp4') || item.name.endsWith('.mkv') || item.name.endsWith('.webm') || item.type === 'video')
-    );
-
-    if (videos.length === 0) {
-        heroBanner.classList.add('hidden');
-        return;
-    }
-
-    const randomVid = videos[Math.floor(Math.random() * videos.length)];
-    
-    document.getElementById('hero-title').innerText = app.cleanFilename(randomVid.name);
-    
-    const safePath = encodeURIComponent(randomVid.filename);
-    document.getElementById('hero-bg').style.backgroundImage = `url('/api/thumbnail/${safePath}')`;
-    
-    const savedTime = localStorage.getItem(`resume_${randomVid.filename}`);
-    if (savedTime && parseFloat(savedTime) > 0) {
-        document.getElementById('hero-meta').innerText = `Resume from ${app.formatTime(parseFloat(savedTime))}`;
-    } else {
-        document.getElementById('hero-meta').innerText = "Recently Added";
-    }
-
-    const playBtn = document.getElementById('hero-play-btn');
-    const newPlayBtn = playBtn.cloneNode(true);
-    playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-    
-    newPlayBtn.onclick = () => {
-        const index = app.currentPlaylist.findIndex(v => v.filename === randomVid.filename);
-        if (index !== -1) {
-            app.openPlayer(index);
-        }
-    };
-
-    heroBanner.classList.remove('hidden');
-}
-
-// --- CC Menu Logic ---
-function toggleCCMenu() {
-    const menu = document.getElementById('cc-menu');
-    if (menu) menu.classList.toggle('hidden');
-}
-
-function setSubtitles(enable) {
-    if (app.video && app.video.textTracks && app.video.textTracks.length > 0) {
-        app.video.textTracks[0].mode = enable ? 'showing' : 'hidden';
-        app.showToast(enable ? "Subtitles On" : "Subtitles Off");
-    } else if (enable) {
-        app.showToast("No subtitle track loaded", true);
-    }
-    const menu = document.getElementById('cc-menu');
-    if (menu) menu.classList.add('hidden');
-}
-
-async function handleSubtitleUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    
-    app.showToast("Uploading subtitle...");
-    
-    try {
-        const response = await fetch(`/api/upload?path=${encodeURIComponent(app.currentPath)}`, {
-            method: 'POST',
-            body: formData
-        });
-
-        if (response.ok) {
-            app.showToast("Subtitle loaded successfully!");
-            
-            const track = document.createElement('track');
-            track.kind = 'subtitles';
-            track.label = file.name;
-            track.srclang = 'en';
-            track.src = URL.createObjectURL(file); 
-            track.default = true;
-            
-            if (app.video) {
-                app.video.querySelectorAll('track').forEach(t => t.remove());
-                app.video.appendChild(track);
-                setSubtitles(true);
-            }
-        } else {
-            app.showToast("Failed to upload subtitle.", true);
-        }
-    } catch (e) {
-        app.showToast("Error uploading subtitle.", true);
-    }
-    
-    event.target.value = ''; 
-}
-
-// --- Auth Modal & Profile Chip Logic ---
-let isSignUpMode = false;
-let currentUser = null;
-
-function toggleAuthMode() {
-    isSignUpMode = !isSignUpMode;
-    document.getElementById('auth-title').innerText = isSignUpMode ? "Create Account" : "Welcome Back";
-    document.getElementById('auth-action-btn').innerText = isSignUpMode ? "Sign Up" : "Login";
-    document.getElementById('auth-switch-text').innerText = isSignUpMode ? "Already have an account? Login." : "New here? Sign up instead.";
-}
-
-async function submitAuth() {
-    const user = document.getElementById('auth-username').value;
-    const pass = document.getElementById('auth-password').value;
-    
-    if (!user || !pass) return app.showToast("Please fill all fields", true);
-    
-    const endpoint = isSignUpMode ? "/api/auth/register" : "/api/auth/login"; // Or "/api/auth" if not separated
-    
-    try {
-        // Wait, app.js previously used /api/auth for login. Let's send to /api/auth/login
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user, password: pass })
-        });
-        
-        if (response.ok) {
-            document.getElementById('auth-modal').style.display = 'none';
-            app.showToast(isSignUpMode ? "Account created!" : "Logged in successfully!");
-            
-            // Refetch to populate user chip
-            const res = await fetch('/api/auth/verify');
-            if (res.ok) {
-                currentUser = await res.json();
-                document.getElementById('user-display-name').innerText = currentUser.display_name || currentUser.username;
-                document.getElementById('user-avatar').src = currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
-                document.getElementById('user-profile-chip').classList.remove('hidden');
-            }
-            
-            app.loadGallery(); 
-        } else {
-            const data = await response.json();
-            app.showToast(data.detail || "Authentication failed", true);
-        }
-    } catch (err) {
-        app.showToast("Network error during authentication", true);
-    }
-}
-
-function openProfileSettings() {
-    if (app && currentUser) {
-        app.showToast(`Hello, ${currentUser.display_name || currentUser.username}! Settings coming soon.`);
-    }
-}
-
-window.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const res = await fetch('/api/auth/verify');
-        if (res.ok) {
-            currentUser = await res.json();
-            
-            // Populate the Profile Chip
-            document.getElementById('user-display-name').innerText = currentUser.display_name || currentUser.username;
-            document.getElementById('user-avatar').src = currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
-            document.getElementById('user-profile-chip').classList.remove('hidden');
-            
-            document.getElementById('auth-modal').style.display = 'none';
-        } else {
-            document.getElementById('auth-modal').style.display = 'flex';
-        }
-    } catch (error) {
-        console.error("Auth verification failed", error);
-    }
-});

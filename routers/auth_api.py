@@ -1,12 +1,14 @@
 """
 StreamDrop — Authentication API Router
-Handles login (PIN → JWT cookie), logout, and current user info.
+Handles user login (JWT cookie), logout, registration, and user management.
 
 Endpoints:
-  POST /api/auth        — Log in with username + password (or legacy PIN)
-  POST /api/auth/logout — Invalidate session
-  GET  /api/auth/me     — Get current user info
-  POST /api/auth/users  — Create a new user (admin only)
+  POST /api/auth/login    — Log in with username + password
+  POST /api/auth/logout   — Invalidate session
+  POST /api/auth/register — Self-register a new guest account
+  GET  /api/auth/verify   — Verify current session & return user context
+  GET  /api/auth/me       — Get current user profile
+  POST /api/auth/users    — Create a new user (admin only)
 """
 
 import logging
@@ -18,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db, User, UserRole, log_audit
+from core.database import get_db, User, UserRole, log_audit, AuditLog, MediaMetadata, PlayEvent
 from auth.jwt_handler import create_user_token, set_auth_cookie, clear_auth_cookie, COOKIE_NAME
 from auth.redis_client import store_session, invalidate_session, invalidate_all_user_sessions
 from auth.rbac import get_current_user, require_role, UserContext
@@ -37,6 +39,11 @@ from core.security import hash_password, verify_password
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1)
     password: str = Field(..., min_length=1)
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=6)
 
 
 class CreateUserRequest(BaseModel):
@@ -89,6 +96,8 @@ async def login(body: LoginRequest, request: Request, response: Response, db: As
         action_type="LOGIN",
         details={"ip": request.client.host if request.client else "unknown"}
     )
+
+    await db.commit()
 
     logger.info(f"✅ Login: user={user.username} role={user.role.value}")
     return {
@@ -143,7 +152,7 @@ async def verify_session(user: UserContext = Depends(get_current_user), db: Asyn
     }
 
 @router.post("/register")
-async def register(body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Username '{body.username}' already exists.")
@@ -168,6 +177,8 @@ async def register(body: LoginRequest, request: Request, response: Response, db:
         details={"ip": request.client.host if request.client else "unknown"}
     )
 
+    await db.commit()
+
     logger.info(f"✨ New user registered: {new_user.username}")
     return {
         "status": "ok",
@@ -191,6 +202,12 @@ async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db
     await db.flush()  # Get the ID without full commit (get_db handles commit)
 
     logger.info(f"👤 Created user: {body.username} ({body.role.value})")
+    await log_audit(
+        db=db,
+        action_type="USER_CREATE",
+        target_resource=body.username,
+        details={"role": body.role.value}
+    )
     return {
         "status": "ok",
         "user": {"id": new_user.id, "username": new_user.username, "role": new_user.role.value},
@@ -208,6 +225,12 @@ async def deactivate_user(user_id: int, db: AsyncSession = Depends(get_db)):
     user.is_active = False
     await invalidate_all_user_sessions(user_id)
     logger.info(f"🚫 Deactivated user: {user.username}")
+    await log_audit(
+        db=db,
+        action_type="USER_DEACTIVATE",
+        target_resource=user.username,
+        user_id=user_id
+    )
     return {"status": "ok", "message": f"User '{user.username}' deactivated."}
 
 
@@ -227,4 +250,47 @@ async def list_users(db: AsyncSession = Depends(get_db)):
             }
             for u in users
         ]
+    }
+
+@router.get("/audit", dependencies=[Depends(require_role("admin"))])
+async def get_audit_logs(limit: int = 50, db: AsyncSession = Depends(get_db)):
+    """Fetch recent audit logs. Admin-only."""
+    result = await db.execute(
+        select(AuditLog, User.username)
+        .outerjoin(User, AuditLog.user_id == User.id)
+        .order_by(AuditLog.timestamp.desc())
+        .limit(limit)
+    )
+    logs = result.all()
+    return {
+        "logs": [
+            {
+                "id": log.AuditLog.id,
+                "timestamp": log.AuditLog.timestamp.isoformat(),
+                "user": log.username or "System",
+                "action": log.AuditLog.action_type,
+                "resource": log.AuditLog.target_resource,
+                "details": log.AuditLog.details
+            }
+            for log in logs
+        ]
+    }
+
+
+@router.get("/stats", dependencies=[Depends(require_role("admin"))])
+async def get_system_stats(db: AsyncSession = Depends(get_db)):
+    """Fetch system statistics. Admin-only."""
+    users_count = await db.scalar(select(func.count()).select_from(User))
+    media_count = await db.scalar(select(func.count()).select_from(MediaMetadata))
+    plays_count = await db.scalar(select(func.count()).select_from(PlayEvent))
+    
+    # Get storage stats
+    result = await db.execute(select(func.sum(MediaMetadata.file_size_bytes)))
+    total_bytes = result.scalar() or 0
+    
+    return {
+        "users": users_count,
+        "media": media_count,
+        "plays": plays_count,
+        "storage_bytes": total_bytes
     }

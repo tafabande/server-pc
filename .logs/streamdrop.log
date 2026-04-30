@@ -518,3 +518,71 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 17:19:15 │ streamdrop.files         │ INFO    │ Found 28 entries in C:\Users\User\Desktop\server
 17:19:15 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:56433 (total: 2)
 17:27:00 │ streamdrop               │ INFO    │ 🛑 Shutdown requested from UI.
+03:50:15 │ streamdrop.database      │ INFO    │ 🌱 Initialized database and seeded admin: 'admin'
+03:50:25 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+03:50:25 │ streamdrop               │ INFO    │ ============================================================
+03:50:25 │ streamdrop               │ INFO    │ 🚀 StreamDrop Enterprise Edition!
+03:50:25 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+03:50:25 │ streamdrop               │ INFO    │    Network: http://10.36.55.5:8000
+03:50:25 │ streamdrop               │ INFO    │    Metrics: http://localhost:8000/metrics
+03:50:25 │ streamdrop               │ INFO    │ ============================================================
+03:50:25 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:51787 (total: 1)
+03:50:52 │ streamdrop.redis         │ WARNING │ ⚠️  Redis unavailable — using in-memory sessions (single-instance mode): Error 22 connecting to localhost:6379. The remote computer refused the network connection.
+03:50:52 │ streamdrop.auth_api      │ INFO    │ ✅ Login: user=admin role=admin
+03:52:50 │ streamdrop.auth_api      │ INFO    │ ✅ Login: user=admin role=admin
+05:40:12 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 10.36.55.5:51787 (total: 0)
+11:06:07 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.36.55.5:53838 (total: 1)
+12:43:06 │ streamdrop.database      │ INFO    │ ✅ Database tables verified.
+12:43:17 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+12:43:17 │ streamdrop               │ INFO    │ ============================================================
+12:43:17 │ streamdrop               │ INFO    │ 🚀 StreamDrop Enterprise Edition!
+12:43:17 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+12:43:17 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+12:43:17 │ streamdrop               │ INFO    │    Metrics: http://localhost:8000/metrics
+12:43:17 │ streamdrop               │ INFO    │ ============================================================
+12:43:18 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.35.18.84:54466 (total: 1)
+12:43:47 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:63778 (total: 2)
+12:44:16 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:63778 (total: 1)
+12:44:17 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50703 (total: 2)
+12:44:39 │ streamdrop.redis         │ WARNING │ ⚠️  Redis unavailable — using in-memory sessions (single-instance mode): Error 22 connecting to localhost:6379. The remote computer refused the network connection.
+12:46:13 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50982 (total: 3)
+12:50:01 │ streamdrop.database      │ INFO    │ 🌱 Initialized database and seeded admin: 'admin'
+12:50:12 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+12:50:12 │ streamdrop               │ INFO    │ ============================================================
+12:50:12 │ streamdrop               │ INFO    │ 🚀 StreamDrop Enterprise Edition!
+12:50:12 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+12:50:12 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+12:50:12 │ streamdrop               │ INFO    │    Metrics: http://localhost:8000/metrics
+12:50:12 │ streamdrop               │ INFO    │ ============================================================
+12:50:12 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:64911 (total: 1)
+12:50:14 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:56462 (total: 2)
+12:50:16 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.35.18.84:60531 (total: 3)
+12:50:45 │ streamdrop.redis         │ WARNING │ ⚠️  Redis unavailable — using in-memory sessions (single-instance mode): Error 22 connecting to localhost:6379. The remote computer refused the network connection.
+12:50:45 │ streamdrop.auth_api      │ INFO    │ ✨ New user registered: shorttestuser
+12:50:45 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+12:50:45 │ streamdrop.files         │ INFO    │ Found 33 entries in C:\Users\User\Desktop\server
+12:51:40 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:56462 (total: 2)
+12:51:42 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:64911 (total: 1)
+12:51:43 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+12:51:43 │ streamdrop.files         │ INFO    │ Found 33 entries in C:\Users\User\Desktop\server
+12:51:44 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50842 (total: 2)
+12:54:08 │ streamdrop.database      │ INFO    │ ✅ Database tables verified.
+12:54:19 │ streamdrop.discovery     │ WARNING │ ⚠️ Zeroconf registration failed (non-fatal): 
+12:54:19 │ streamdrop               │ INFO    │ ============================================================
+12:54:19 │ streamdrop               │ INFO    │ 🚀 StreamDrop Enterprise Edition!
+12:54:19 │ streamdrop               │ INFO    │    Local:   http://localhost:8000
+12:54:19 │ streamdrop               │ INFO    │    Network: http://10.35.18.84:8000
+12:54:19 │ streamdrop               │ INFO    │    Metrics: http://localhost:8000/metrics
+12:54:19 │ streamdrop               │ INFO    │ ============================================================
+12:54:19 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:57136 (total: 1)
+12:54:19 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 10.35.18.84:56414 (total: 2)
+12:54:55 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:57136 (total: 1)
+12:54:55 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:64829 (total: 2)
+12:55:00 │ streamdrop.redis         │ WARNING │ ⚠️  Redis unavailable — using in-memory sessions (single-instance mode): Error 22 connecting to localhost:6379. The remote computer refused the network connection.
+12:55:40 │ streamdrop.auth_api      │ INFO    │ ✨ New user registered: testuser2
+12:55:40 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+12:55:40 │ streamdrop.files         │ INFO    │ Found 33 entries in C:\Users\User\Desktop\server
+12:55:53 │ streamdrop.ws            │ INFO    │ 🔌 WS disconnected: 127.0.0.1:64829 (total: 1)
+12:55:53 │ streamdrop.files         │ INFO    │ Listing files in: C:\Users\User\Desktop\server (subpath: '')
+12:55:53 │ streamdrop.files         │ INFO    │ Found 33 entries in C:\Users\User\Desktop\server
+12:55:53 │ streamdrop.ws            │ INFO    │ 🔌 WS connected: 127.0.0.1:50042 (total: 2)

@@ -50,9 +50,9 @@
             
             <input type="password" id="auth-password" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 24px; border-radius: 8px; border: 1px solid #444; background: #222; color: #fff;">
             
-            <button id="auth-action-btn" onclick="submitAuth()" style="width: 100%; padding: 14px; border-radius: 12px; background: var(--md-sys-color-primary, #9064ff); color: #fff; font-weight: bold; border: none; cursor: pointer;">Login</button>
+            <button id="auth-action-btn" onclick="app.submitAuth()" style="width: 100%; padding: 14px; border-radius: 12px; background: var(--md-sys-color-primary, #9064ff); color: #fff; font-weight: bold; border: none; cursor: pointer;">Login</button>
             
-            <p style="margin-top: 16px; color: #aaa; cursor: pointer;" onclick="toggleAuthMode()">
+            <p style="margin-top: 16px; color: #aaa; cursor: pointer;" onclick="app.toggleAuthMode()">
                 <span id="auth-switch-text">New here? Sign up instead.</span>
             </p>
         </div>
@@ -79,7 +79,7 @@
                     <span class="material-symbols-rounded" id="clearSearch" style="cursor: pointer; display: none;">close</span>
                 </div>
 
-                <div id="user-profile-chip" class="hidden" onclick="openProfileSettings()">
+                <div id="user-profile-chip" class="hidden" onclick="app.openProfileSettings()">
                     <img id="user-avatar" src="" alt="Avatar">
                     <span id="user-display-name">Loading...</span>
                 </div>
@@ -220,14 +220,14 @@
                     </button>
                     
                     <div style="position: relative; display: inline-block;">
-                        <button class="icon-btn" onclick="toggleCCMenu()" title="Subtitles">
+                        <button class="icon-btn" onclick="app.toggleCCMenu()" title="Subtitles">
                             <span class="material-symbols-rounded">closed_caption</span>
                         </button>
                         
                         <div id="cc-menu" class="hidden" style="position: absolute; bottom: 50px; right: 0; width: 200px; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
                             <h4 style="margin: 0 0 8px 5px; font-size: 14px; color: #aaa;">Subtitles</h4>
                             
-                            <button class="cc-option" onclick="setSubtitles(false)" style="background:transparent; color:#fff; border:none; text-align:left; display:flex; gap:8px; cursor:pointer;">
+                            <button class="cc-option" onclick="app.setSubtitles(false)" style="background:transparent; color:#fff; border:none; text-align:left; display:flex; gap:8px; cursor:pointer;">
                                 <span class="material-symbols-rounded">visibility_off</span> Off
                             </button>
                             
@@ -237,7 +237,7 @@
                         </div>
                     </div>
 
-                    <input type="file" id="subtitle-upload" accept=".vtt,.srt" style="display: none;" onchange="handleSubtitleUpload(event)">
+                    <input type="file" id="subtitle-upload" accept=".vtt,.srt" style="display: none;" onchange="app.handleOnTheFlySubtitleUpload(event)">
 
                     <div class="spacer"></div>
                     <button class="icon-btn" id="fullscreenBtn">

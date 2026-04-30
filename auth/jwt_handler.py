@@ -16,15 +16,12 @@ from typing import Any
 
 from jose import JWTError, jwt
 from fastapi import HTTPException, status
-from dotenv import load_dotenv
 
-from config import JWT_EXPIRE_HOURS
+from config import JWT_EXPIRE_HOURS  # config.py loads .env at import time
 
 logger = logging.getLogger("streamdrop.jwt")
 
 COOKIE_NAME = "streamdrop_session"
-
-load_dotenv() # Ensure .env is loaded
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")

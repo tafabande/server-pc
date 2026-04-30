@@ -102,6 +102,25 @@ class MediaMetadata(Base):
     indexed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     transcoded_at = Column(DateTime(timezone=True), nullable=True)
 
+    @property
+    def resolution_label(self) -> str:
+        if not self.width or not self.height:
+            return "Unknown"
+        if self.height >= 2160: return "4K"
+        if self.height >= 1080: return "1080p"
+        if self.height >= 720: return "720p"
+        return f"{self.height}p"
+
+    @property
+    def duration_label(self) -> str:
+        if not self.duration_seconds:
+            return "00:00"
+        mins, secs = divmod(int(self.duration_seconds), 60)
+        hours, mins = divmod(mins, 60)
+        if hours:
+            return f"{hours:02d}:{mins:02d}:{secs:02d}"
+        return f"{mins:02d}:{secs:02d}"
+
     play_events = relationship("PlayEvent", back_populates="media", lazy="dynamic")
 
 class PlayEvent(Base):

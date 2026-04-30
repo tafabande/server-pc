@@ -1,6 +1,6 @@
 import uvicorn
 from config import HOST, PORT
-from core.main import _kill_process_on_port
+from core.utils import _kill_process_on_port
 
 if __name__ == "__main__":
     # Kill any existing process on the port before starting to avoid address binding errors

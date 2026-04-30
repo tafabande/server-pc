@@ -1,20 +1,16 @@
 """
 StreamDrop — Security Core
-Handles authentication middleware, legacy PIN shims, and password hashing.
+Handles authentication middleware and password hashing.
 """
 
 import logging
-import secrets
-import time
 import bcrypt
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from jose import JWTError
 
 from auth.jwt_handler import COOKIE_NAME, decode_token
 from auth.redis_client import get_session_user_id
 from auth.rbac import UserContext
-from config import PIN, JWT_EXPIRE_HOURS
 
 logger = logging.getLogger("streamdrop.security")
 
@@ -38,32 +34,12 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-# ── Legacy shims (kept for backwards compatibility) ──────────────────────────
-
-SESSION_EXPIRY_HOURS = JWT_EXPIRE_HOURS  # alias
-
-def verify_pin(pin_attempt: str) -> bool:
-    """Kept for backwards compatibility."""
-    return secrets.compare_digest(pin_attempt, PIN)
-
-
-def create_session():
-    """Legacy shim — returns (token_placeholder, expiry_timestamp)."""
-    token = secrets.token_urlsafe(32)
-    expiry = time.time() + (JWT_EXPIRE_HOURS * 3600)
-    return token, expiry
-
-
-def set_session_cookie(response, token: str, expiry: float):
-    """Legacy shim. Prefer auth.jwt_handler.set_auth_cookie."""
-    from auth.jwt_handler import set_auth_cookie
-    set_auth_cookie(response, token)
-
 
 # ── Routes that bypass authentication ─────────────────────────────────────────
 PUBLIC_PATHS = {
     "/",
-    "/api/auth",
+    "/api/auth/login",
+    "/api/auth/register",
     "/api/auth/logout",
     "/api/status",
     "/api/qr",
@@ -106,7 +82,9 @@ async def auth_middleware(request: Request, call_next):
     try:
         payload = decode_token(token)
     except Exception as e:
-        # decode_token now raises HTTPException or JWTError
+        from fastapi import HTTPException
+        if isinstance(e, HTTPException):
+            return _unauthorized(e.detail)
         return _unauthorized(f"Invalid or expired session: {e}")
 
     user_id_str = payload.get("sub")
@@ -119,7 +97,10 @@ async def auth_middleware(request: Request, call_next):
     # Step 2: Cross-check Redis to support logout-on-all-devices
     try:
         stored_uid = await get_session_user_id(token)
-        if stored_uid is not None and stored_uid != int(user_id_str):
+        if stored_uid is None:
+            # Session was never stored or has been invalidated/expired
+            return _unauthorized("Session expired or invalidated. Please log in again.")
+        if stored_uid != int(user_id_str):
             return _unauthorized("Session invalidated.")
     except Exception:
         # Redis unreachable — fall back to JWT-only validation
