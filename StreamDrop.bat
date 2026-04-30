@@ -97,7 +97,7 @@ if !errorlevel! equ 0 (
 echo.
 echo  [*] All checks passed! Starting StreamDrop modular server...
 echo.
-%PYTHON% core\main.py
+%PYTHON% run.py
 
 :: If the server crashes or closes, pause to show the error
 if !errorlevel! neq 0 (
