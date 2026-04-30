@@ -18,6 +18,11 @@
   --radius-m: 12px;
   --radius-l: 16px;
   --radius-xl: 28px;
+  
+  /* --- Glow Up Additions --- */
+  --primary-glow: rgba(144, 100, 255, 0.5);
+  --glass-bg: rgba(25, 25, 35, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -52,9 +57,9 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--m3-surface);
-  color: var(--m3-on-surface);
+  font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #0d0d12 0%, #1a1a2e 100%);
+  color: #e0e0e0;
   line-height: 1.5;
   overflow-x: hidden;
 }
@@ -248,19 +253,27 @@ header {
   overflow: hidden;
   position: relative;
   cursor: pointer;
-  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: fadeUp 0.5s ease-out forwards;
+  opacity: 0;
+  transform: translateY(15px);
   display: flex;
   flex-direction: column;
   user-select: none;
   -webkit-user-select: none;
   /* CRITICAL: Give the card a proper height so click targets work */
   aspect-ratio: 4 / 3;
+  z-index: 1;
 }
+
+.media-card:nth-child(even) { animation-delay: 0.05s; }
+.media-card:nth-child(3n) { animation-delay: 0.1s; }
 
 .media-card:hover {
   background: var(--m3-secondary-container);
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+  border-color: var(--m3-primary);
 }
 
 .media-card:active {
@@ -376,12 +389,17 @@ header {
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.2s;
   z-index: 1000;
 }
 
+.fab:hover {
+  transform: scale(1.15);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .fab:active {
-  transform: scale(0.9);
+  transform: scale(0.95);
 }
 
 .fab-progress {
@@ -414,11 +432,16 @@ header {
   justify-content: center;
   padding: 8px;
   border-radius: 50%;
-  transition: background 0.2s;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.2s;
 }
 
 .icon-btn:hover {
-  background: rgba(255,255,255,0.1);
+  transform: scale(1.15);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
 }
 
 .icon-btn .material-symbols-rounded {
@@ -1014,4 +1037,168 @@ header {
 @keyframes toastOut {
     from { transform: translate(-50%, 0); opacity: 1; }
     to { transform: translate(-50%, 20px); opacity: 0; }
+}
+
+@keyframes fadeUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Make headers, modals, and the player UI frosted glass */
+header, #player-top, #player-bottom, .modal-content, #cc-menu {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border);
+}
+
+/* The Glow Effect for Cards */
+.media-card {
+    background: rgba(30, 30, 40, 0.4);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.media-card:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 12px 40px var(--primary-glow);
+    border-color: rgba(144, 100, 255, 0.8);
+}
+
+/* --- Hero Banner Container --- */
+#hero-banner {
+    position: relative;
+    width: 100%;
+    height: 40vh;
+    min-height: 300px;
+    border-radius: 24px;
+    overflow: hidden;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: flex-end;
+    opacity: 0;
+    animation: fadeUp 0.8s ease-out forwards;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+#hero-banner.hidden {
+    display: none !important;
+}
+
+#hero-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+    animation: panZoom 25s linear infinite alternate; 
+}
+
+@keyframes panZoom {
+    0% { transform: scale(1.0) translate(0, 0); }
+    100% { transform: scale(1.1) translate(-2%, 2%); }
+}
+
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, rgba(13,13,18,1) 0%, rgba(13,13,18,0.4) 50%, rgba(13,13,18,0.1) 100%);
+    z-index: 1;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    padding: 32px;
+    width: 100%;
+}
+
+.hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    color: var(--md-sys-color-primary, #b388ff);
+}
+
+#hero-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    margin: 0 0 8px 0;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+#hero-meta {
+    font-size: 16px;
+    color: #bbb;
+    margin: 0 0 24px 0;
+}
+
+.hero-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--md-sys-color-primary, #9064ff);
+    color: #fff;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 8px 24px var(--primary-glow);
+    animation: breathe 3s ease-in-out infinite;
+}
+
+.hero-btn:hover {
+    transform: scale(1.05) translateY(-2px);
+    background: #a37cff;
+}
+
+@keyframes breathe {
+    0%, 100% { box-shadow: 0 8px 24px var(--primary-glow); }
+    50% { box-shadow: 0 12px 32px rgba(144, 100, 255, 0.8); }
+}
+
+/* --- The Profile Chip --- */
+#user-profile-chip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 16px 6px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#user-profile-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+#user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #222;
+}
+
+#user-display-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #fff;
 }

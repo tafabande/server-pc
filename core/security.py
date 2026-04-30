@@ -105,7 +105,8 @@ async def auth_middleware(request: Request, call_next):
     # Step 1: Verify JWT signature and expiry (pure cryptography, no DB hit)
     try:
         payload = decode_token(token)
-    except JWTError as e:
+    except Exception as e:
+        # decode_token now raises HTTPException or JWTError
         return _unauthorized(f"Invalid or expired session: {e}")
 
     user_id_str = payload.get("sub")

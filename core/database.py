@@ -74,6 +74,11 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
+    
+    # --- Profile Metadata ---
+    display_name = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True) 
+    preferences = Column(JSON, default={"theme": "dark", "autoplay": True})
 
     play_events = relationship("PlayEvent", back_populates="user", lazy="dynamic")
 

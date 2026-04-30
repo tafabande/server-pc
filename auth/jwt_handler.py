@@ -10,16 +10,27 @@ Design choices:
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from jose import JWTError, jwt
+from fastapi import HTTPException, status
+from dotenv import load_dotenv
 
-from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS
+from config import JWT_EXPIRE_HOURS
 
 logger = logging.getLogger("streamdrop.jwt")
 
 COOKIE_NAME = "streamdrop_session"
+
+load_dotenv() # Ensure .env is loaded
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+
+if not SECRET_KEY:
+    raise ValueError("CRITICAL: SECRET_KEY is missing from .env file!")
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
@@ -32,7 +43,7 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
         expires_delta or timedelta(hours=JWT_EXPIRE_HOURS)
     )
     to_encode["exp"] = expire
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> dict[str, Any]:
@@ -40,7 +51,14 @@ def decode_token(token: str) -> dict[str, Any]:
     Decode and validate a JWT.
     Raises jose.JWTError on invalid / expired tokens.
     """
-    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session, signature verification failed",
+        )
+
 
 
 def create_user_token(user_id: int, username: str, role: str) -> str:

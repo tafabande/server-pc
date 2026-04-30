@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 # Force in-memory SQLite for all tests BEFORE importing app modules
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("JWT_SECRET", "test-secret-key-for-pytest-only-not-production")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-only-not-production")
 os.environ.setdefault("ADMIN_USERNAME", "admin")
 os.environ.setdefault("ADMIN_PASSWORD", "testpassword123")
 os.environ.setdefault("SHARED_FOLDER", str(Path(tempfile.mkdtemp(prefix="streamdrop_test_"))))

@@ -51,9 +51,7 @@ PIN = os.getenv("PIN", "1234")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
-# JWT signing secret — auto-generate a strong one if not set in .env
-JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_urlsafe(64))
-JWT_ALGORITHM = "HS256"
+# JWT Configuration
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
 SESSION_EXPIRY_HOURS = JWT_EXPIRE_HOURS  # alias for legacy code

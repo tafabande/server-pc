@@ -56,7 +56,7 @@ class UserResponse(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.post("")
+@router.post("/login")
 async def login(body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """
     Authenticate with username + password.
@@ -121,6 +121,57 @@ async def get_me(user: UserContext = Depends(get_current_user), db: AsyncSession
         "role": db_user.role.value,
         "created_at": db_user.created_at.isoformat(),
         "last_login": db_user.last_login.isoformat() if db_user.last_login else None,
+    }
+
+@router.get("/verify")
+async def verify_session(user: UserContext = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.id == user.user_id))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="User not found.")
+    
+    name = db_user.display_name or db_user.username
+    avatar = db_user.avatar_url or f"https://api.dicebear.com/7.x/avataaars/svg?seed={name}"
+    
+    return {
+        "id": db_user.id,
+        "username": db_user.username,
+        "display_name": name,
+        "role": db_user.role.value,
+        "avatar_url": avatar,
+        "preferences": db_user.preferences
+    }
+
+@router.post("/register")
+async def register(body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    existing = await db.execute(select(User).where(User.username == body.username))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Username '{body.username}' already exists.")
+
+    new_user = User(
+        username=body.username,
+        hashed_password=hash_password(body.password),
+        role=UserRole.guest,
+        last_login=datetime.now(timezone.utc)
+    )
+    db.add(new_user)
+    await db.flush()
+
+    token = create_user_token(new_user.id, new_user.username, new_user.role.value)
+    await store_session(token, new_user.id, ttl_seconds=JWT_EXPIRE_HOURS * 3600)
+    set_auth_cookie(response, token)
+
+    await log_audit(
+        db=db,
+        user_id=new_user.id,
+        action_type="REGISTER",
+        details={"ip": request.client.host if request.client else "unknown"}
+    )
+
+    logger.info(f"✨ New user registered: {new_user.username}")
+    return {
+        "status": "ok",
+        "message": "Account created",
     }
 
 

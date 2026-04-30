@@ -88,12 +88,8 @@ class StreamDropApp {
         this.folderSettings = document.getElementById('folderSettings');
         this.optimizeFolderToggle = document.getElementById('optimizeFolderToggle');
 
-        // Login UI
-        this.loginOverlay = document.getElementById('login-overlay');
-        this.loginUsername = document.getElementById('login-username');
-        this.loginPassword = document.getElementById('login-password');
-        this.loginBtn = document.getElementById('login-btn');
-        this.loginError = document.getElementById('login-error');
+        // Old login UI replaced by Auth Modal logic
+
 
         this.localFavorites = JSON.parse(localStorage.getItem('media_favorites')) || [];
 
@@ -270,13 +266,8 @@ class StreamDropApp {
             });
         }
 
-        // Login
-        if (this.loginBtn) {
-            this.loginBtn.addEventListener('click', () => this.handleLogin());
-            this.loginPassword.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.handleLogin();
-            });
-        }
+        // Login logic moved to global functions
+
     }
 
     setupPlayerEvents() {
@@ -488,11 +479,14 @@ class StreamDropApp {
             const response = await fetch(url);
             
             if (response.status === 401) {
-                this.loginOverlay.classList.remove('hidden');
+                const authModal = document.getElementById('auth-modal');
+                if (authModal) authModal.style.display = 'flex';
                 return;
             }
             
-            this.loginOverlay.classList.add('hidden'); // Hide if successful
+            const authModal = document.getElementById('auth-modal');
+            if (authModal) authModal.style.display = 'none'; // Hide if successful
+
             
             const data = await response.json();
             this.allFiles = data.items || [];
@@ -500,6 +494,10 @@ class StreamDropApp {
             
             // Build current playlist (only videos)
             this.currentPlaylist = this.allFiles.filter(f => f.type === 'video');
+            
+            if (typeof updateHeroBanner === 'function') {
+                updateHeroBanner(this.allFiles);
+            }
 
             if (pushState && this.activeFilter === 'all') {
                 history.pushState({ path: this.currentPath }, '', `?path=${this.currentPath}`);
@@ -514,31 +512,7 @@ class StreamDropApp {
     }
 
     async handleLogin() {
-        const username = this.loginUsername.value;
-        const password = this.loginPassword.value;
-
-        if (!username || !password) return;
-
-        try {
-            const response = await fetch('/api/auth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            if (response.ok) {
-                this.loginError.style.display = 'none';
-                this.loginOverlay.classList.add('hidden');
-                await this.loadGallery();
-                this.showToast(`Logged in as ${username}`);
-            } else {
-                this.loginError.style.display = 'block';
-            }
-        } catch (err) {
-            console.error('Login failed:', err);
-            this.loginError.style.display = 'block';
-            this.loginError.innerText = 'Connection error';
-        }
+        // Obsolete, replaced by submitAuth
     }
 
     async updateFolderSettings() {
@@ -1222,6 +1196,49 @@ class StreamDropApp {
         }
     }
 
+    async handleOnTheFlySubtitleUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        this.showToast("Uploading subtitle...");
+        
+        try {
+            const response = await fetch(`/api/upload?path=${encodeURIComponent(this.currentPath)}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                this.showToast("Subtitle loaded successfully!");
+                
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = file.name;
+                track.srclang = 'en';
+                track.src = URL.createObjectURL(file); 
+                track.default = true;
+                
+                const oldTracks = this.video.querySelectorAll('track');
+                oldTracks.forEach(t => t.remove());
+
+                this.video.appendChild(track);
+                
+                if (this.video.textTracks && this.video.textTracks.length > 0) {
+                    this.video.textTracks[0].mode = 'showing';
+                }
+            } else {
+                this.showToast("Failed to upload subtitle.", true);
+            }
+        } catch (e) {
+            this.showToast("Error uploading subtitle.", true);
+        }
+        
+        event.target.value = ''; 
+    }
+
     async handleSubtitleUpload(e) {
         const file = e.target.files[0];
         if (!file || !this.selectedFile) return;
@@ -1400,3 +1417,179 @@ class StreamDropApp {
 // Global instance
 const app = new StreamDropApp();
 // window.app is set inside the constructor
+
+// --- Hero Banner Logic ---
+function updateHeroBanner(items) {
+    const heroBanner = document.getElementById('hero-banner');
+    if (!heroBanner) return;
+    
+    const videos = items.filter(item => 
+        !item.is_dir && 
+        (item.name.endsWith('.mp4') || item.name.endsWith('.mkv') || item.name.endsWith('.webm') || item.type === 'video')
+    );
+
+    if (videos.length === 0) {
+        heroBanner.classList.add('hidden');
+        return;
+    }
+
+    const randomVid = videos[Math.floor(Math.random() * videos.length)];
+    
+    document.getElementById('hero-title').innerText = app.cleanFilename(randomVid.name);
+    
+    const safePath = encodeURIComponent(randomVid.filename);
+    document.getElementById('hero-bg').style.backgroundImage = `url('/api/thumbnail/${safePath}')`;
+    
+    const savedTime = localStorage.getItem(`resume_${randomVid.filename}`);
+    if (savedTime && parseFloat(savedTime) > 0) {
+        document.getElementById('hero-meta').innerText = `Resume from ${app.formatTime(parseFloat(savedTime))}`;
+    } else {
+        document.getElementById('hero-meta').innerText = "Recently Added";
+    }
+
+    const playBtn = document.getElementById('hero-play-btn');
+    const newPlayBtn = playBtn.cloneNode(true);
+    playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+    
+    newPlayBtn.onclick = () => {
+        const index = app.currentPlaylist.findIndex(v => v.filename === randomVid.filename);
+        if (index !== -1) {
+            app.openPlayer(index);
+        }
+    };
+
+    heroBanner.classList.remove('hidden');
+}
+
+// --- CC Menu Logic ---
+function toggleCCMenu() {
+    const menu = document.getElementById('cc-menu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+function setSubtitles(enable) {
+    if (app.video && app.video.textTracks && app.video.textTracks.length > 0) {
+        app.video.textTracks[0].mode = enable ? 'showing' : 'hidden';
+        app.showToast(enable ? "Subtitles On" : "Subtitles Off");
+    } else if (enable) {
+        app.showToast("No subtitle track loaded", true);
+    }
+    const menu = document.getElementById('cc-menu');
+    if (menu) menu.classList.add('hidden');
+}
+
+async function handleSubtitleUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    app.showToast("Uploading subtitle...");
+    
+    try {
+        const response = await fetch(`/api/upload?path=${encodeURIComponent(app.currentPath)}`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            app.showToast("Subtitle loaded successfully!");
+            
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = file.name;
+            track.srclang = 'en';
+            track.src = URL.createObjectURL(file); 
+            track.default = true;
+            
+            if (app.video) {
+                app.video.querySelectorAll('track').forEach(t => t.remove());
+                app.video.appendChild(track);
+                setSubtitles(true);
+            }
+        } else {
+            app.showToast("Failed to upload subtitle.", true);
+        }
+    } catch (e) {
+        app.showToast("Error uploading subtitle.", true);
+    }
+    
+    event.target.value = ''; 
+}
+
+// --- Auth Modal & Profile Chip Logic ---
+let isSignUpMode = false;
+let currentUser = null;
+
+function toggleAuthMode() {
+    isSignUpMode = !isSignUpMode;
+    document.getElementById('auth-title').innerText = isSignUpMode ? "Create Account" : "Welcome Back";
+    document.getElementById('auth-action-btn').innerText = isSignUpMode ? "Sign Up" : "Login";
+    document.getElementById('auth-switch-text').innerText = isSignUpMode ? "Already have an account? Login." : "New here? Sign up instead.";
+}
+
+async function submitAuth() {
+    const user = document.getElementById('auth-username').value;
+    const pass = document.getElementById('auth-password').value;
+    
+    if (!user || !pass) return app.showToast("Please fill all fields", true);
+    
+    const endpoint = isSignUpMode ? "/api/auth/register" : "/api/auth/login"; // Or "/api/auth" if not separated
+    
+    try {
+        // Wait, app.js previously used /api/auth for login. Let's send to /api/auth/login
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        
+        if (response.ok) {
+            document.getElementById('auth-modal').style.display = 'none';
+            app.showToast(isSignUpMode ? "Account created!" : "Logged in successfully!");
+            
+            // Refetch to populate user chip
+            const res = await fetch('/api/auth/verify');
+            if (res.ok) {
+                currentUser = await res.json();
+                document.getElementById('user-display-name').innerText = currentUser.display_name || currentUser.username;
+                document.getElementById('user-avatar').src = currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
+                document.getElementById('user-profile-chip').classList.remove('hidden');
+            }
+            
+            app.loadGallery(); 
+        } else {
+            const data = await response.json();
+            app.showToast(data.detail || "Authentication failed", true);
+        }
+    } catch (err) {
+        app.showToast("Network error during authentication", true);
+    }
+}
+
+function openProfileSettings() {
+    if (app && currentUser) {
+        app.showToast(`Hello, ${currentUser.display_name || currentUser.username}! Settings coming soon.`);
+    }
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('/api/auth/verify');
+        if (res.ok) {
+            currentUser = await res.json();
+            
+            // Populate the Profile Chip
+            document.getElementById('user-display-name').innerText = currentUser.display_name || currentUser.username;
+            document.getElementById('user-avatar').src = currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
+            document.getElementById('user-profile-chip').classList.remove('hidden');
+            
+            document.getElementById('auth-modal').style.display = 'none';
+        } else {
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error("Auth verification failed", error);
+    }
+});
