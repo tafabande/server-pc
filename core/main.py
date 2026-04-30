@@ -38,9 +38,9 @@ from routers.auth_api import router as auth_router
 from routers.media_api import router as media_router
 
 # Core & Workers
-from core.websockets import manager
+from core.socket_manager import manager
 from core.workers import transcode_to_hls
-from streaming import stream_manager
+from core.streaming import stream_manager
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -288,15 +288,3 @@ def _kill_process_on_port(port: int):
                         )
     except Exception:
         pass
-
-
-if __name__ == "__main__":
-    import uvicorn
-    _kill_process_on_port(PORT)
-    uvicorn.run(
-        "core.main:app",
-        host=HOST,
-        port=PORT,
-        log_level="info",
-        access_log=True,
-    )

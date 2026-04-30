@@ -16,7 +16,9 @@ def run_fastapi():
     try:
         # Load config inside the process
         from config import HOST, PORT
-        uvicorn.run("core.main:app", host="0.0.0.0", port=8000, log_level="error", access_log=False)
+        from core.main import _kill_process_on_port
+        _kill_process_on_port(PORT)
+        uvicorn.run("core.main:app", host=HOST, port=PORT, log_level="error", access_log=False)
     except Exception as e:
         print(f"Server Error: {e}")
 

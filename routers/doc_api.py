@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import SHARED_FOLDER
 from core.database import get_db, log_audit
-from core.websockets import manager
+from core.socket_manager import manager
 from auth.rbac import get_current_user, require_role, guest_path_check, UserContext
 
 logger = logging.getLogger("streamdrop.doc_api")

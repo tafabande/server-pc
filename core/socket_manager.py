@@ -208,7 +208,7 @@ class ConnectionManager:
 
     async def _handle_bitrate(self, websocket: WebSocket, data: dict):
         """Handle adaptive bitrate requests from clients."""
-        from streaming import stream_manager
+        from core.streaming import stream_manager
 
         quality = data.get("quality", 75)
         quality = max(20, min(95, int(quality)))

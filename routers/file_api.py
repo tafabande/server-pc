@@ -21,7 +21,7 @@ from config import SHARED_FOLDER
 from core.database import get_db, get_folder_optimization, set_folder_optimization, MediaMetadata, log_audit
 from core.file_manager import save_upload, list_files, delete_file, get_or_generate_thumbnail, rename_item
 from core.favorites_manager import list_favorites_details, toggle_favorite
-from core.websockets import manager
+from core.socket_manager import manager
 from auth.rbac import get_current_user, require_role, guest_path_check, UserContext
 
 logger = logging.getLogger("streamdrop.file_api")
