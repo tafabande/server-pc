@@ -171,7 +171,7 @@ def list_files(subpath: str = "") -> list[dict]:
         return []
 
     try:
-        from favorites_manager import load_favorites
+        from core.favorites_manager import load_favorites
         favorites = load_favorites()
 
         with os.scandir(target_dir) as it:
@@ -218,7 +218,7 @@ def _file_info(filepath: Path, favorites: list[str] = None) -> dict:
     
     # Check favorite status
     if favorites is None:
-        from favorites_manager import load_favorites
+        from core.favorites_manager import load_favorites
         favorites = load_favorites()
     
     is_favorite = rel_path in favorites
@@ -432,7 +432,7 @@ def rename_item(rel_path: str, new_name: str) -> dict:
         # Folder info
         favorites = []
         try:
-            from favorites_manager import load_favorites
+            from core.favorites_manager import load_favorites
             favorites = load_favorites()
         except: pass
         

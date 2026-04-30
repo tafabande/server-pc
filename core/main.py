@@ -27,8 +27,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from config import HOST, PORT, SHARED_FOLDER, STATIC_DIR, LOG_DIR, TRANSCODE_DIR
-from security import auth_middleware
-from discovery import ServiceDiscovery, get_local_ip, get_server_url, generate_qr_code
+from core.security import auth_middleware
+from core.discovery import ServiceDiscovery, get_local_ip, get_server_url, generate_qr_code
 
 # Routers
 from routers.stream_api import router as stream_router

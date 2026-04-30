@@ -38,7 +38,7 @@ def is_favorite(filename: str) -> bool:
 
 def list_favorites_details() -> list[dict]:
     """Return full file info for all favorited files."""
-    from file_manager import _file_info
+    from core.file_manager import _file_info
     fav_names = load_favorites()
     details = []
     for name in fav_names:

@@ -65,12 +65,12 @@ GUEST_ROOT_PATH = os.getenv("GUEST_ROOT_PATH", "")
 # ── Database ───────────────────────────────────────────
 # Default: async SQLite for local dev. Override with PostgreSQL DSN for prod.
 # Example: postgresql+asyncpg://user:pass@postgres:5432/streamdrop
-_DATA_DIR = SHARED_FOLDER / ".data"
-_DATA_DIR.mkdir(exist_ok=True, parents=True)
+DATA_DIR = SHARED_FOLDER / ".data"
+DATA_DIR.mkdir(exist_ok=True, parents=True)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    f"sqlite+aiosqlite:///{_DATA_DIR / 'streamdrop.db'}"
+    f"sqlite+aiosqlite:///{DATA_DIR / 'streamdrop.db'}"
 )
 
 # ── Redis ──────────────────────────────────────────────

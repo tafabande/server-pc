@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from config import DATABASE_URL
+from config import DATABASE_URL, DATA_DIR
 
 logger = logging.getLogger("streamdrop.database")
 
@@ -206,4 +206,38 @@ async def log_audit(
         details=details,
     )
     db.add(log)
+
+
+# -- Folder Optimization Settings ----------------------------------------------
+
+_OPTIM_FILE = DATA_DIR / "folder_optim.json"
+
+def _load_optim():
+    if not _OPTIM_FILE.exists():
+        return {}
+    try:
+        import json
+        with open(_OPTIM_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_optim(data):
+    try:
+        import json
+        with open(_OPTIM_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+def get_folder_optimization(folder_path: str) -> bool:
+    """Check if HLS optimization is enabled for a folder."""
+    data = _load_optim()
+    return data.get(folder_path, False)
+
+def set_folder_optimization(folder_path: str, enabled: bool):
+    """Enable/disable HLS optimization for a folder."""
+    data = _load_optim()
+    data[folder_path] = enabled
+    _save_optim(data)
 

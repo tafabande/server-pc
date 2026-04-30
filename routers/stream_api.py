@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import SHARED_FOLDER, TRANSCODE_DIR
 from core.database import get_db, MediaMetadata
-from streaming import stream_manager
+from core.streaming import stream_manager
 from auth.rbac import get_current_user, require_role, UserContext
 
 router = APIRouter(prefix="/api/stream", tags=["Stream"])

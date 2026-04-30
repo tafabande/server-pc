@@ -207,7 +207,7 @@ async def _probe_all_pending():
     from core.database import AsyncSessionFactory
     from core.database import MediaMetadata
     from config import SHARED_FOLDER
-    from file_manager import _get_file_type
+    from core.file_manager import _get_file_type
 
     VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"}
 
