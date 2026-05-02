@@ -131,10 +131,11 @@ async def toggle_fav(
 
 # ── Upload ─────────────────────────────────────────────────────────────────────
 
-@router.post("/upload", dependencies=[Depends(require_role("admin", "family"))])
+@router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     path: str = Query(default=""),
+    user: UserContext = Depends(require_role("admin", "family")),
     db: AsyncSession = Depends(get_db),
 ):
     try:

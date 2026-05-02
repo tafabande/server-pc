@@ -19,7 +19,7 @@ class TestLogin:
 
     async def test_login_wrong_password(self, client: AsyncClient):
         resp = await client.post(
-            "/api/auth",
+            "/api/auth/login",
             json={"username": "admin", "password": "wrongpassword"},
         )
         assert resp.status_code == 401
@@ -27,7 +27,7 @@ class TestLogin:
 
     async def test_login_nonexistent_user(self, client: AsyncClient):
         resp = await client.post(
-            "/api/auth",
+            "/api/auth/login",
             json={"username": "nobody", "password": "anything"},
         )
         assert resp.status_code == 401
@@ -38,7 +38,7 @@ class TestLogin:
 
     async def test_login_sets_httponly_cookie(self, client: AsyncClient):
         resp = await client.post(
-            "/api/auth",
+            "/api/auth/login",
             json={"username": "admin", "password": "testpassword123"},
         )
         assert resp.status_code == 200
@@ -50,7 +50,7 @@ class TestLogin:
 
     async def test_login_returns_user_info(self, client: AsyncClient):
         resp = await client.post(
-            "/api/auth",
+            "/api/auth/login",
             json={"username": "admin", "password": "testpassword123"},
         )
         assert resp.status_code == 200
@@ -168,7 +168,7 @@ class TestLogout:
     async def test_logout_clears_cookie(self, client: AsyncClient):
         # Login
         login_resp = await client.post(
-            "/api/auth",
+            "/api/auth/login",
             json={"username": "admin", "password": "testpassword123"},
         )
         assert login_resp.status_code == 200

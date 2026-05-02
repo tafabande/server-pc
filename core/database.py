@@ -153,7 +153,7 @@ class AuditLog(Base):
     details = Column(JSON, nullable=True) # JSONB content
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
 
 # ── FastAPI Dependency ────────────────────────────────────────────────────────
 
@@ -172,15 +172,33 @@ async def bootstrap_system():
     """
     Bootstrap the system: 
     1. Create all tables.
-    2. Seed initial admin user if none exists.
+    2. Apply simple migrations for existing tables (e.g., adding missing columns).
+    3. Seed initial admin user if none exists.
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Simple migration for AuditLog: check if user_id column exists
+        if DATABASE_URL.startswith("sqlite"):
+            def migrate_audit_logs(connection):
+                cursor = connection.execute("PRAGMA table_info(audit_logs)")
+                columns = [row[1] for row in cursor.fetchall()]
+                if columns and "user_id" not in columns:
+                    logger.info("🛠️ Migrating 'audit_logs' table: adding 'user_id' column.")
+                    connection.execute("ALTER TABLE audit_logs ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL")
+            
+            await conn.run_sync(migrate_audit_logs)
     
     # Check for existing users and seed admin if empty
     async with AsyncSessionFactory() as db:
-        result = await db.execute(select(func.count()).select_from(User))
-        if result.scalar() == 0:
+        try:
+            result = await db.execute(select(func.count()).select_from(User))
+            user_count = result.scalar()
+        except Exception as e:
+            logger.error(f"❌ Error checking user count: {e}")
+            user_count = 0
+
+        if user_count == 0:
             from config import ADMIN_USERNAME, ADMIN_PASSWORD
             from core.security import hash_password
             admin = User(

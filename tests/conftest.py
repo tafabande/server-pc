@@ -32,8 +32,7 @@ os.environ.setdefault("ADMIN_PASSWORD", "testpassword123")
 os.environ.setdefault("SHARED_FOLDER", str(Path(tempfile.mkdtemp(prefix="streamdrop_test_"))))
 os.environ.setdefault("TRANSCODE_DIR", str(Path(tempfile.mkdtemp(prefix="streamdrop_transcode_"))))
 
-from db.models import Base
-from core.database import get_db
+from core.database import Base, get_db
 
 
 # ── In-memory DB Engine ────────────────────────────────────────────────────────
@@ -76,8 +75,8 @@ async def client(engine, db_session):
     app.dependency_overrides[get_db] = override_get_db
 
     # Seed admin user before tests
-    from db.models import User, UserRole
-    from routers.auth_api import hash_password
+    from core.database import User, UserRole
+    from core.security import hash_password
     from sqlalchemy import select
 
     result = await db_session.execute(select(User).where(User.username == "admin"))
@@ -113,7 +112,7 @@ async def client(engine, db_session):
 async def admin_token(client: AsyncClient) -> str:
     """Log in as admin and return the session cookie value."""
     resp = await client.post(
-        "/api/auth",
+        "/api/auth/login",
         json={"username": "admin", "password": "testpassword123"},
     )
     assert resp.status_code == 200, f"Admin login failed: {resp.text}"
@@ -124,7 +123,7 @@ async def admin_token(client: AsyncClient) -> str:
 async def guest_token(client: AsyncClient) -> str:
     """Log in as guest and return the session cookie value."""
     resp = await client.post(
-        "/api/auth",
+        "/api/auth/login",
         json={"username": "guest", "password": "guestpass"},
     )
     assert resp.status_code == 200, f"Guest login failed: {resp.text}"
@@ -135,7 +134,7 @@ async def guest_token(client: AsyncClient) -> str:
 async def family_token(client: AsyncClient) -> str:
     """Log in as family user and return the session cookie value."""
     resp = await client.post(
-        "/api/auth",
+        "/api/auth/login",
         json={"username": "family", "password": "familypass"},
     )
     assert resp.status_code == 200, f"Family login failed: {resp.text}"
