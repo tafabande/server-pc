@@ -14,6 +14,7 @@ Endpoints:
 import logging
 import hashlib
 import secrets
+import os
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -355,11 +356,14 @@ async def forgot_password(
     await db.commit()
 
     # In production, send email here
-    # For LAN server, log the token (insecure but practical)
-    logger.info(f"🔑 Password reset token for {user.username}: {raw_token}")
-    logger.info(f"Reset URL: http://localhost:8000/reset-password?token={raw_token}")
+    # For development mode ONLY, log the token (insecure but practical for LAN dev)
+    if os.getenv("ENV") == "development":
+        logger.warning(f"🔧 DEV ONLY - Password reset token for {user.username}: {raw_token}")
+        logger.warning(f"🔧 DEV ONLY - Reset URL: http://localhost:8000/reset-password?token={raw_token}")
+    else:
+        logger.info(f"Password reset requested for user ID: {user.id}")
 
-    return {"message": "If account exists, reset instructions will be sent", "dev_token": raw_token}
+    return {"message": "If account exists, reset instructions have been sent. Check your server logs in development mode."}
 
 
 @router.post("/reset-password", status_code=200)

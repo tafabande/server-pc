@@ -10,6 +10,7 @@ Graceful degradation:
 import hashlib
 import logging
 import asyncio
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -21,6 +22,7 @@ _memory_store: dict[str, tuple[str, datetime]] = {}  # token_hash -> (user_id, e
 
 # ── Circuit Breaker ───────────────────────────────────────────────────────────
 _redis_failures = 0
+_last_failure_time: float = 0
 MAX_FAILURES = 3
 FAILURE_RESET_TIME = 300  # 5 minutes
 SESSION_TTL = 86400  # 24 hours
@@ -56,23 +58,31 @@ async def _get_redis_connection():
 
 async def get_redis():
     """Get Redis connection with circuit breaker pattern."""
-    global _redis_failures
+    global _redis_failures, _last_failure_time
 
-    # Circuit open - don't try Redis
+    # Circuit breaker reset logic
     if _redis_failures >= MAX_FAILURES:
-        logger.warning(f"Redis circuit breaker OPEN ({_redis_failures} failures). Using memory fallback.")
-        return None
+        # Check if we should retry (5 minutes have passed)
+        if time.time() - _last_failure_time > FAILURE_RESET_TIME:
+            logger.info("⚡ Circuit breaker timeout reached, attempting Redis reconnect...")
+            _redis_failures = 0  # Reset counter
+            _last_failure_time = 0
+        else:
+            logger.warning(f"Redis circuit breaker OPEN ({_redis_failures} failures). Using memory fallback.")
+            return None
 
     try:
         redis = await _get_redis_connection()
         if redis:
             _redis_failures = 0  # Reset on success
+            _last_failure_time = 0
         return redis
     except Exception as e:
         _redis_failures += 1
+        _last_failure_time = time.time()  # Track when failure occurred
         logger.error(f"Redis connection failed ({_redis_failures}/{MAX_FAILURES}): {e}")
         if _redis_failures >= MAX_FAILURES:
-            logger.critical("⚠️ Redis circuit breaker OPENED. Will use memory fallback.")
+            logger.critical("⚠️ Redis circuit breaker OPENED. Will use memory fallback and retry in 5 minutes.")
         return None
 
 

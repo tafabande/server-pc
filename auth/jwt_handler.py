@@ -28,8 +28,18 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 if not SECRET_KEY:
+    if os.getenv("ENV") == "production":
+        raise ValueError(
+            "CRITICAL: SECRET_KEY environment variable must be set in production! "
+            "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+    # Development mode: auto-generate with warning
     SECRET_KEY = secrets.token_urlsafe(32)
-    logger.warning("⚠️ Using auto-generated SECRET_KEY. Set SECRET_KEY in .env for production to persist sessions across restarts.")
+    logger.warning("⚠️ " + "="*60)
+    logger.warning("⚠️ DEV MODE: Using auto-generated SECRET_KEY")
+    logger.warning("⚠️ All sessions will be invalidated on server restart")
+    logger.warning("⚠️ Set SECRET_KEY in .env for persistent sessions")
+    logger.warning("⚠️ " + "="*60)
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
