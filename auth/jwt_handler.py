@@ -11,6 +11,7 @@ Design choices:
 
 import logging
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -27,7 +28,8 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 if not SECRET_KEY:
-    raise ValueError("CRITICAL: SECRET_KEY is missing from .env file!")
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning("⚠️ Using auto-generated SECRET_KEY. Set SECRET_KEY in .env for production to persist sessions across restarts.")
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:

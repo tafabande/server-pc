@@ -2439,5 +2439,18 @@ class StreamDropApp {
     }
 }
 
+// Global 401 handler - wrap fetch to handle session expiry
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+    const response = await originalFetch(...args);
+    if (response.status === 401 && !args[0].includes('/api/auth/login')) {
+        console.warn('Session expired, showing auth modal');
+        if (window.app) {
+            window.app.showAuthModal();
+        }
+    }
+    return response;
+};
+
 // Global instance
 const app = new StreamDropApp();

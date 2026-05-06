@@ -77,10 +77,11 @@ class User(Base):
     
     # --- Profile Metadata ---
     display_name = Column(String, nullable=True)
-    avatar_url = Column(String, nullable=True) 
+    avatar_url = Column(String, nullable=True)
     preferences = Column(JSON, default={"theme": "dark", "autoplay": True})
 
     play_events = relationship("PlayEvent", back_populates="user", lazy="dynamic")
+    reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
 class MediaMetadata(Base):
     __tablename__ = "media_metadata"
@@ -155,6 +156,19 @@ class AuditLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     user = relationship("User", foreign_keys=[user_id])
+
+class PasswordResetToken(Base):
+    """Password reset tokens for account recovery."""
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String, unique=True, nullable=False, index=True)  # hashed token
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="reset_tokens")
 
 # ── FastAPI Dependency ────────────────────────────────────────────────────────
 

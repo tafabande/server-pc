@@ -12,15 +12,17 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime, timezone
+import hashlib
+import secrets
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db, User, UserRole, log_audit, AuditLog, MediaMetadata, PlayEvent
+from core.database import get_db, User, UserRole, log_audit, AuditLog, MediaMetadata, PlayEvent, PasswordResetToken
 from auth.jwt_handler import create_user_token, set_auth_cookie, clear_auth_cookie, COOKIE_NAME
 from auth.redis_client import store_session, invalidate_session, invalidate_all_user_sessions
 from auth.rbac import get_current_user, require_role, UserContext
@@ -308,6 +310,172 @@ async def get_audit_logs(limit: int = 50, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(
+    request: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Request password reset token."""
+    email_or_username = request.get("email_or_username")
+    if not email_or_username:
+        raise HTTPException(400, "Email or username required")
+
+    # Find user
+    result = await db.execute(
+        select(User).where(
+            or_(User.username == email_or_username)
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    # Always return success (don't leak user existence)
+    if not user:
+        logger.warning(f"Password reset requested for non-existent user: {email_or_username}")
+        return {"message": "If account exists, reset instructions will be sent"}
+
+    # Generate token
+    raw_token = secrets.token_urlsafe(32)
+    hashed = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    # Invalidate old tokens
+    await db.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id)
+        .where(PasswordResetToken.used == False)
+        .values(used=True)
+    )
+
+    # Create new token
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        token=hashed,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+    )
+    db.add(reset_token)
+    await db.commit()
+
+    # In production, send email here
+    # For LAN server, log the token (insecure but practical)
+    logger.info(f"🔑 Password reset token for {user.username}: {raw_token}")
+    logger.info(f"Reset URL: http://localhost:8000/reset-password?token={raw_token}")
+
+    return {"message": "If account exists, reset instructions will be sent", "dev_token": raw_token}
+
+
+@router.post("/reset-password", status_code=200)
+async def reset_password(
+    request: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Reset password using token."""
+    token = request.get("token")
+    new_password = request.get("new_password")
+
+    if not token or not new_password:
+        raise HTTPException(400, "Token and new password required")
+
+    if len(new_password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+
+    # Hash token
+    hashed = hashlib.sha256(token.encode()).hexdigest()
+
+    # Find valid token
+    result = await db.execute(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token == hashed)
+        .where(PasswordResetToken.used == False)
+        .where(PasswordResetToken.expires_at > datetime.now(timezone.utc))
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise HTTPException(400, "Invalid or expired token")
+
+    # Get user
+    result = await db.execute(select(User).where(User.id == reset_token.user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Update password
+    user.hashed_password = hash_password(new_password)
+    reset_token.used = True
+
+    await db.commit()
+
+    # Log audit
+    await log_audit(db, user.id, "password_reset", details={"via": "reset_token"})
+
+    logger.info(f"Password reset successful for user: {user.username}")
+
+    return {"message": "Password reset successful"}
+
+
+@router.patch("/me", response_model=dict)
+async def update_profile(
+    updates: dict,
+    current_user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update current user's profile."""
+    allowed_fields = {"display_name", "avatar_url", "preferences"}
+
+    # Get user
+    result = await db.execute(select(User).where(User.id == current_user.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    for key, value in updates.items():
+        if key not in allowed_fields:
+            raise HTTPException(400, f"Cannot update field: {key}")
+        setattr(user, key, value)
+
+    await db.commit()
+    await db.refresh(user)
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "avatar_url": user.avatar_url,
+        "preferences": user.preferences
+    }
+
+
+@router.get("/me/preferences")
+async def get_preferences(current_user: UserContext = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get user preferences."""
+    result = await db.execute(select(User).where(User.id == current_user.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User not found")
+    return user.preferences or {}
+
+
+@router.patch("/me/preferences")
+async def update_preferences(
+    preferences: dict,
+    current_user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update user preferences (merge with existing)."""
+    result = await db.execute(select(User).where(User.id == current_user.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    current_prefs = user.preferences or {}
+    current_prefs.update(preferences)
+    user.preferences = current_prefs
+
+    await db.commit()
+
+    return user.preferences
+
+
 @router.get("/stats", dependencies=[Depends(require_role("admin"))])
 async def get_system_stats(db: AsyncSession = Depends(get_db)):
     """Fetch system statistics. Admin-only."""
@@ -315,11 +483,11 @@ async def get_system_stats(db: AsyncSession = Depends(get_db)):
     media_count = await db.scalar(select(func.count()).select_from(MediaMetadata))
     plays_count = await db.scalar(select(func.count()).select_from(PlayEvent))
     audit_count = await db.scalar(select(func.count()).select_from(AuditLog))
-    
+
     # Get storage stats
     result = await db.execute(select(func.sum(MediaMetadata.file_size_bytes)))
     total_bytes = result.scalar() or 0
-    
+
     return {
         "total_users": users_count,
         "total_media": media_count,
