@@ -2,6 +2,10 @@
  * StreamDrop — Reactive Material 3 Client
  */
 
+// Conditional logging for production (disable console.log in production)
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const debug = isDev ? console.log.bind(console) : () => {};
+
 class StreamDropApp {
     constructor() {
         window.app = this; // Ensure global access early for any sync calls
@@ -110,6 +114,11 @@ class StreamDropApp {
         this.folderSettings = document.getElementById('folderSettings');
         this.optimizeFolderToggle = document.getElementById('optimizeFolderToggle');
 
+        // Mobile menu elements
+        this.mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        this.sidebarOverlay = document.getElementById('sidebarOverlay');
+        this.sideNav = document.querySelector('.side-nav');
+
         // Old login UI replaced by Auth Modal logic
 
 
@@ -187,6 +196,7 @@ class StreamDropApp {
         this.initSplash();
         this.setupEventListeners();
         this.setupPlayerEvents();
+        this.setupMobileMenu();
         this.connectWebSocket();
         await this.verifyAuth();
         await this.loadGallery();
@@ -206,8 +216,8 @@ class StreamDropApp {
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('SW Registered'))
-                    .catch(err => console.log('SW Registration Failed', err));
+                    .then(reg => debug('SW Registered'))
+                    .catch(err => debug('SW Registration Failed', err));
             });
         }
 
@@ -227,7 +237,7 @@ class StreamDropApp {
             this.deferredPrompt.prompt();
             // Wait for the user to respond to the prompt
             const { outcome } = await this.deferredPrompt.userChoice;
-            console.log(`User response to the install prompt: ${outcome}`);
+            debug(`User response to the install prompt: ${outcome}`);
             // We've used the prompt, and can't use it again, throw it away
             this.deferredPrompt = null;
             // Hide the button
@@ -235,9 +245,78 @@ class StreamDropApp {
         });
 
         window.addEventListener('appinstalled', (evt) => {
-            console.log('StreamDrop was installed.');
+            debug('StreamDrop was installed.');
             this.installAppBtn.style.display = 'none';
         });
+    }
+
+    setupMobileMenu() {
+        if (!this.mobileMenuBtn || !this.sidebarOverlay || !this.sideNav) return;
+
+        // Show/hide mobile menu button based on screen size
+        const updateMobileUI = () => {
+            if (window.innerWidth <= 768) {
+                this.mobileMenuBtn.style.display = 'flex';
+            } else {
+                this.mobileMenuBtn.style.display = 'none';
+                this.sideNav.classList.remove('open');
+                this.sidebarOverlay.classList.remove('active');
+            }
+        };
+
+        updateMobileUI();
+        window.addEventListener('resize', updateMobileUI);
+
+        // Toggle sidebar
+        this.mobileMenuBtn.addEventListener('click', () => {
+            this.sideNav.classList.toggle('open');
+            this.sidebarOverlay.classList.toggle('active');
+        });
+
+        // Close sidebar when overlay clicked
+        this.sidebarOverlay.addEventListener('click', () => {
+            this.sideNav.classList.remove('open');
+            this.sidebarOverlay.classList.remove('active');
+        });
+
+        // Close sidebar when nav item clicked (mobile only)
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    this.sideNav.classList.remove('open');
+                    this.sidebarOverlay.classList.remove('active');
+                }
+            });
+        });
+    }
+
+    renderSkeletonGallery() {
+        const skeletons = Array(12).fill(0).map(() => `
+            <div class="skeleton-item">
+                <div class="skeleton-thumb"></div>
+                <div class="skeleton-text"></div>
+            </div>
+        `).join('');
+
+        return `<div class="skeleton-gallery">${skeletons}</div>`;
+    }
+
+    showLoadingOverlay(message = 'Loading...') {
+        const overlay = document.createElement('div');
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = `
+            <div style="text-align: center; color: white;">
+                <div class="spinner" style="margin: 0 auto 16px;"></div>
+                <div>${message}</div>
+            </div>
+        `;
+        overlay.id = 'loading-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    hideLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.remove();
     }
 
     setupEventListeners() {
@@ -568,14 +647,14 @@ class StreamDropApp {
 
         this.ws.onopen = () => {
             this.isConnecting = false;
-            console.log("WebSocket connected cleanly.");
+            debug("WebSocket connected cleanly.");
         };
 
         this.ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'update') {
-                    console.log("🔄 Real-time update received");
+                    debug("🔄 Real-time update received");
                     this.loadGallery();
                 } else if (data.type === 'transcription') {
                     this.showLiveCaption(data.text);
@@ -603,25 +682,32 @@ class StreamDropApp {
     }
 
     async loadGallery(pushState = true, pin = "") {
-        let url = this.activeFilter === 'favorites' 
-            ? '/api/favorites' 
+        // Show skeleton while loading
+        this.gallery.innerHTML = this.renderSkeletonGallery();
+
+        let url = this.activeFilter === 'favorites'
+            ? '/api/favorites'
             : `/api/files/${encodeURIComponent(this.currentPath)}`;
-            
+
         if (pin && this.activeFilter !== 'favorites') url += `?pin=${pin}`;
 
         try {
             const response = await fetch(url);
-            
+
             if (response.status === 401) {
                 const authModal = document.getElementById('auth-modal');
                 if (authModal) authModal.style.display = 'flex';
                 return;
             }
-            
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
             const authModal = document.getElementById('auth-modal');
             if (authModal) authModal.style.display = 'none'; // Hide if successful
 
-            
+
             const data = await response.json();
             this.allFiles = data.items || [];
             this.visibleCount = this.itemsPerPage; // Reset scroll on new folder
@@ -639,7 +725,18 @@ class StreamDropApp {
             this.renderBreadcrumbs();
             this.updateFolderSettings();
         } catch (error) {
-            console.error("Failed to load gallery:", error);
+            debug("Failed to load gallery:", error);
+
+            this.gallery.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;">Failed to load files. Please try again.</div>';
+
+            let errorMessage = 'Failed to load files';
+            if (!navigator.onLine) {
+                errorMessage = 'You are offline. Check your network connection.';
+            } else {
+                errorMessage = `Failed to load files: ${error.message}`;
+            }
+
+            this.showToast(errorMessage, true);
         }
     }
 
@@ -1155,7 +1252,7 @@ class StreamDropApp {
         try {
             const headResponse = await fetch(hlsUrl, { method: 'HEAD' });
             if (headResponse.ok) {
-                console.log("HLS stream found, attempting playback");
+                debug("HLS stream found, attempting playback");
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     this.hlsPlayer = new Hls();
                     this.hlsPlayer.loadSource(hlsUrl);
@@ -1171,7 +1268,7 @@ class StreamDropApp {
                 throw new Error("No HLS");
             }
         } catch (e) {
-            console.log("Falling back to direct Byte-Range stream");
+            debug("Falling back to direct Byte-Range stream");
             this.video.src = directUrl;
         }
         
@@ -1187,7 +1284,7 @@ class StreamDropApp {
             track.src = item.subtitles_url;
             track.default = true;
             this.video.appendChild(track);
-            console.log("Subtitle track added:", item.subtitles_url);
+            debug("Subtitle track added:", item.subtitles_url);
         }
 
         this.playerContainer.classList.remove('hidden');
@@ -1381,7 +1478,7 @@ class StreamDropApp {
                     try {
                         await screen.orientation.lock('landscape');
                     } catch (err) {
-                        console.log("Orientation lock not supported or allowed.", err);
+                        debug("Orientation lock not supported or allowed.", err);
                     }
                 }
             } catch (err) {
@@ -1480,7 +1577,7 @@ class StreamDropApp {
             // Memory Optimization: If file > 100MB, use native download 
             // to avoid crashing browser with large Blobs
             if (total > 100 * 1024 * 1024) {
-                console.log("File large, using native download for memory safety");
+                debug("File large, using native download for memory safety");
                 window.location.href = `/api/download/${encodeURIComponent(currentVid.filename)}`;
                 this.updateProgressUI("", 0, false);
                 return;
@@ -1536,7 +1633,7 @@ class StreamDropApp {
 
         const uploadIcon = document.getElementById('uploadIcon');
         const progressCircle = document.getElementById('uploadProgress');
-        
+
         // Show loading state
         uploadIcon.innerText = 'sync';
         uploadIcon.style.animation = 'spin 1s linear infinite';
@@ -1546,47 +1643,79 @@ class StreamDropApp {
         let totalUploaded = 0;
         const totalSize = Array.from(files).reduce((acc, f) => acc + f.size, 0);
 
-        for (const file of files) {
-            let lastFileUploaded = 0;
-            await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                const formData = new FormData();
-                formData.append('file', file);
+        try {
+            for (const file of files) {
+                let lastFileUploaded = 0;
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    const formData = new FormData();
+                    formData.append('file', file);
 
-                xhr.upload.addEventListener('progress', (ev) => {
-                    if (ev.lengthComputable) {
-                        const filePercent = (ev.loaded / ev.total) * 100;
-                        progressCircle.style.background = `conic-gradient(var(--m3-primary) ${filePercent}%, transparent 0)`;
-                        
-                        // Global progress
-                        const currentTotal = totalUploaded + ev.loaded;
-                        const overallPercent = (currentTotal / totalSize) * 100;
-                        this.updateProgressUI(`Uploading: ${file.name}`, overallPercent);
-                    }
+                    xhr.upload.addEventListener('progress', (ev) => {
+                        if (ev.lengthComputable) {
+                            const filePercent = (ev.loaded / ev.total) * 100;
+                            progressCircle.style.background = `conic-gradient(var(--m3-primary) ${filePercent}%, transparent 0)`;
+
+                            // Global progress
+                            const currentTotal = totalUploaded + ev.loaded;
+                            const overallPercent = (currentTotal / totalSize) * 100;
+                            this.updateProgressUI(`Uploading: ${file.name}`, overallPercent);
+                        }
+                    });
+
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            totalUploaded += file.size;
+                            resolve();
+                        } else if (xhr.status === 413) {
+                            reject(new Error('File too large'));
+                        } else if (xhr.status === 401) {
+                            reject(new Error('Session expired'));
+                        } else if (xhr.status === 403) {
+                            reject(new Error('Permission denied'));
+                        } else {
+                            reject(new Error(xhr.responseText || 'Upload failed'));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error("Network error"));
+
+                    const target = encodeURIComponent(this.currentPath);
+                    xhr.open('POST', `/api/upload?path=${target}`);
+                    xhr.send(formData);
                 });
+            }
 
-                xhr.onload = () => {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        totalUploaded += file.size;
-                        resolve();
-                    } else reject(new Error(xhr.responseText));
-                };
-                xhr.onerror = () => reject(new Error("Network error"));
+            // Success
+            this.showToast('Upload complete!', false);
+            await this.loadGallery();
 
-                const target = encodeURIComponent(this.currentPath);
-                xhr.open('POST', `/api/upload?path=${target}`);
-                xhr.send(formData);
-            });
+        } catch (error) {
+            // Error handling with specific messages
+            let errorMessage = 'Upload failed';
+            if (!navigator.onLine) {
+                errorMessage = 'Upload failed: You are offline';
+            } else if (error.message.includes('too large')) {
+                errorMessage = 'Upload failed: File too large';
+            } else if (error.message.includes('expired')) {
+                errorMessage = 'Upload failed: Session expired. Please log in again.';
+                this.showAuthModal();
+            } else if (error.message.includes('denied')) {
+                errorMessage = 'Upload failed: Permission denied';
+            } else {
+                errorMessage = `Upload failed: ${error.message}`;
+            }
+
+            this.showToast(errorMessage, true);
+
+        } finally {
+            // Reset state
+            this.updateProgressUI("", 0, false);
+            uploadIcon.innerText = 'add';
+            uploadIcon.style.animation = 'none';
+            this.uploadFab.style.pointerEvents = 'auto';
+            progressCircle.style.display = 'none';
+            this.fileInput.value = '';
         }
-        
-        // Reset state
-        this.updateProgressUI("", 0, false);
-        uploadIcon.innerText = 'add';
-        uploadIcon.style.animation = 'none';
-        this.uploadFab.style.pointerEvents = 'auto';
-        progressCircle.style.display = 'none';
-        this.fileInput.value = '';
-        await this.loadGallery();
     }
 
     // --- Helpers ---
@@ -1642,7 +1771,7 @@ class StreamDropApp {
             const title = data.mode === 'webcam' ? 'Live Webcam Stream' : 'Live Desktop Stream';
             this.streamContainer.querySelector('.title').innerText = title;
 
-            console.log(`Stream mode changed to: ${data.mode}`);
+            debug(`Stream mode changed to: ${data.mode}`);
         } catch (e) {
             console.error("Toggle failed:", e);
         }
@@ -1672,7 +1801,7 @@ class StreamDropApp {
             const t = Date.now();
             this.streamImg.src = `/api/stream/video?t=${t}`;
             this.streamAudio.src = `/api/stream/audio?t=${t}`;
-            this.streamAudio.play().catch(e => console.log("Audio autoplay blocked", e));
+            this.streamAudio.play().catch(e => debug("Audio autoplay blocked", e));
             
             // 5. Hide gallery scroll
             document.body.style.overflow = 'hidden';
@@ -1854,24 +1983,41 @@ class StreamDropApp {
 
     async handleDelete() {
         if (!this.selectedFile) return;
-        
-        const confirmMsg = this.selectedFile.is_dir 
+
+        const confirmMsg = this.selectedFile.is_dir
             ? `Delete folder "${this.selectedFile.name}" and all its contents?`
             : `Delete "${this.selectedFile.name}"?`;
-            
+
         if (confirm(confirmMsg)) {
             try {
                 const response = await fetch(`/api/files/${encodeURIComponent(this.selectedFile.filename)}`, {
                     method: 'DELETE'
                 });
+
                 if (response.ok) {
                     this.closeContextMenu();
+                    this.showToast('Deleted successfully', false);
                     await this.loadGallery();
                 } else {
-                    alert("Delete failed");
+                    let errorMessage = 'Delete failed';
+                    if (response.status === 401) {
+                        errorMessage = 'Delete failed: Session expired';
+                        this.showAuthModal();
+                    } else if (response.status === 403) {
+                        errorMessage = 'Delete failed: Permission denied (admin only)';
+                    } else {
+                        errorMessage = `Delete failed: ${response.statusText}`;
+                    }
+                    this.showToast(errorMessage, true);
                 }
-            } catch (e) {
-                console.error("Delete failed:", e);
+            } catch (error) {
+                let errorMessage = 'Delete failed';
+                if (!navigator.onLine) {
+                    errorMessage = 'Cannot delete: You are offline';
+                } else {
+                    errorMessage = `Delete failed: ${error.message}`;
+                }
+                this.showToast(errorMessage, true);
             }
         }
     }

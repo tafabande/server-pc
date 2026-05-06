@@ -13,8 +13,50 @@ import asyncio
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from collections import OrderedDict
 
 logger = logging.getLogger("streamdrop.redis")
+
+# ── Session Cache ─────────────────────────────────────────────────────────────
+
+class SessionCache:
+    """LRU cache for session validation with TTL."""
+
+    def __init__(self, max_size: int = 1000, ttl: int = 60):
+        self.cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
+        self.max_size = max_size
+        self.ttl = ttl
+
+    def get(self, key: str) -> str | None:
+        """Get cached session, return None if expired or missing."""
+        if key not in self.cache:
+            return None
+
+        user_id, timestamp = self.cache[key]
+
+        # Check if expired
+        if time.time() - timestamp > self.ttl:
+            del self.cache[key]
+            return None
+
+        # Move to end (LRU)
+        self.cache.move_to_end(key)
+        return user_id
+
+    def set(self, key: str, value: str):
+        """Set cache entry with current timestamp."""
+        # Remove oldest if at capacity
+        if len(self.cache) >= self.max_size:
+            self.cache.popitem(last=False)
+
+        self.cache[key] = (value, time.time())
+
+    def invalidate(self, key: str):
+        """Remove entry from cache."""
+        self.cache.pop(key, None)
+
+# Initialize cache
+_session_cache = SessionCache(max_size=1000, ttl=60)
 
 # ── In-memory fallback ────────────────────────────────────────────────────────
 # Used when Redis is unreachable. Thread-safe enough for single-instance dev.
@@ -105,19 +147,32 @@ async def store_session(token: str, user_id: int, ttl_seconds: int = SESSION_TTL
 
 async def get_session_user_id(token: str) -> Optional[int]:
     """
-    Look up user_id for a given token. Returns None if invalid/expired.
+    Look up user_id for a given token with caching. Returns None if invalid/expired.
     """
     key = _hash_token(token)
+
+    # Check cache first
+    cached_user_id = _session_cache.get(key)
+    if cached_user_id is not None:
+        return int(cached_user_id)
+
     r = await get_redis()
     if r:
         value = await r.get(key)
-        return int(value) if value else None
+        if value:
+            user_id_str = value if isinstance(value, str) else str(value)
+            # Update cache
+            _session_cache.set(key, user_id_str)
+            return int(user_id_str)
+        return None
     else:
         # Check memory store with TTL
         entry = _memory_store.get(key)
         if entry:
             user_id, expires_at = entry
             if datetime.now(timezone.utc) < expires_at:
+                # Update cache
+                _session_cache.set(key, user_id)
                 return int(user_id)
             else:
                 # Expired, remove it
@@ -126,8 +181,12 @@ async def get_session_user_id(token: str) -> Optional[int]:
 
 
 async def invalidate_session(token: str):
-    """Remove a session (logout)."""
+    """Remove a session (logout) including cache."""
     key = _hash_token(token)
+
+    # Clear from cache
+    _session_cache.invalidate(key)
+
     r = await get_redis()
     if r:
         await r.delete(key)

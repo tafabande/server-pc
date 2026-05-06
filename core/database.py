@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Float,
     ForeignKey, Text, Enum as SAEnum, BigInteger, JSON,
-    select, func
+    select, func, Index
 )
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -104,6 +104,11 @@ class MediaMetadata(Base):
     indexed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     transcoded_at = Column(DateTime(timezone=True), nullable=True)
 
+    __table_args__ = (
+        Index('idx_media_lookup', 'rel_path', 'is_hls_ready'),
+        Index('idx_owner_indexed', 'owner_id', 'indexed_at'),
+    )
+
     @property
     def resolution_label(self) -> str:
         if not self.width or not self.height:
@@ -139,6 +144,11 @@ class PlayEvent(Base):
     resume_position_seconds = Column(Float, default=0.0)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
+    __table_args__ = (
+        Index('idx_user_media_time', 'user_id', 'media_id', 'timestamp'),
+        Index('idx_recent_events', 'timestamp', 'event_type'),
+    )
+
     user = relationship("User", back_populates="play_events")
     media = relationship("MediaMetadata", back_populates="play_events")
 
@@ -154,6 +164,10 @@ class AuditLog(Base):
     target_resource = Column(String(1024), nullable=True) # e.g., /shared/finances.txt
     details = Column(JSON, nullable=True) # JSONB content
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    __table_args__ = (
+        Index('idx_user_action_time', 'user_id', 'action_type', 'timestamp'),
+    )
 
     user = relationship("User", foreign_keys=[user_id])
 

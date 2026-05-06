@@ -304,10 +304,22 @@ def _generate_thumbnail(filepath: Path):
         if file_type == "image":
             from PIL import Image
             with Image.open(filepath) as img:
-                img.thumbnail(THUMB_SIZE)
+                # Use draft mode for efficient downsampling
+                img.draft(None, THUMB_SIZE)
+                img.thumbnail(THUMB_SIZE, Image.Lanczos)
+
+                # Convert to RGB for JPEG
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
-                img.save(thumb_path, "JPEG", quality=70)
+
+                # Save with progressive encoding and optimization
+                img.save(
+                    thumb_path,
+                    "JPEG",
+                    quality=70,      # Good balance of quality/size
+                    optimize=True,   # Optimize Huffman tables
+                    progressive=True # Progressive JPEG for faster perceived loading
+                )
                 logger.info(f"✅ Image thumbnail generated: {thumb_path.name}")
 
         elif file_type == "video":
