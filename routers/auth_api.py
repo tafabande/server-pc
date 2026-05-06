@@ -17,7 +17,7 @@ import secrets
 import os
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update, func, or_
@@ -478,6 +478,140 @@ async def update_preferences(
     await db.commit()
 
     return user.preferences
+
+
+@router.post("/me/avatar", status_code=200)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Upload and set user avatar.
+
+    - Accepts: image/jpeg, image/png, image/webp
+    - Max size: 5MB
+    - Auto-resizes to 256x256
+    - Saves as JPEG for consistency
+    """
+    from PIL import Image
+    import io
+
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(400, "Only image files are allowed (JPEG, PNG, WebP)")
+
+    # Read file
+    contents = await file.read()
+
+    # Validate size (5MB max)
+    max_size = 5 * 1024 * 1024  # 5MB
+    if len(contents) > max_size:
+        raise HTTPException(400, f"File too large. Maximum size is 5MB, got {len(contents) // 1024}KB")
+
+    try:
+        # Open and validate image
+        img = Image.open(io.BytesIO(contents))
+
+        # Convert RGBA to RGB (for transparent PNGs)
+        if img.mode in ('RGBA', 'P', 'LA'):
+            # Create white background
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        # Create square crop (center crop)
+        width, height = img.size
+        size = min(width, height)
+        left = (width - size) // 2
+        top = (height - size) // 2
+        img = img.crop((left, top, left + size, top + size))
+
+        # Resize to 256x256
+        img.thumbnail((256, 256), Image.LANCZOS)
+
+        # Save to avatars directory
+        from config import STATIC_DIR
+        avatars_dir = STATIC_DIR / "avatars"
+        avatars_dir.mkdir(exist_ok=True, parents=True)
+
+        # Use user ID + timestamp for unique filename
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        avatar_filename = f"{current_user.user_id}_{timestamp}.jpg"
+        avatar_path = avatars_dir / avatar_filename
+
+        # Save with optimization
+        img.save(avatar_path, "JPEG", quality=85, optimize=True)
+
+        # Update user record
+        result = await db.execute(
+            select(User).where(User.id == current_user.user_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(404, "User not found")
+
+        # Delete old avatar if exists
+        if user.avatar_url and user.avatar_url.startswith('/static/avatars/'):
+            old_filename = user.avatar_url.split('/')[-1]
+            old_path = avatars_dir / old_filename
+            if old_path.exists():
+                old_path.unlink()
+
+        # Set new avatar URL
+        user.avatar_url = f"/static/avatars/{avatar_filename}"
+        await db.commit()
+
+        # Log audit
+        await log_audit(db, user.id, "avatar_upload", {"filename": avatar_filename})
+
+        logger.info(f"Avatar uploaded for user {user.username}: {avatar_filename}")
+
+        return {
+            "avatar_url": user.avatar_url,
+            "message": "Avatar uploaded successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Avatar upload failed: {e}")
+        raise HTTPException(500, f"Failed to process image: {str(e)}")
+
+
+@router.delete("/me/avatar", status_code=200)
+async def delete_avatar(
+    current_user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove user avatar and reset to default."""
+    result = await db.execute(
+        select(User).where(User.id == current_user.user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Delete avatar file if exists
+    if user.avatar_url and user.avatar_url.startswith('/static/avatars/'):
+        from config import STATIC_DIR
+        avatars_dir = STATIC_DIR / "avatars"
+        filename = user.avatar_url.split('/')[-1]
+        avatar_path = avatars_dir / filename
+        if avatar_path.exists():
+            avatar_path.unlink()
+
+    # Reset to null
+    user.avatar_url = None
+    await db.commit()
+
+    await log_audit(db, user.id, "avatar_delete", {})
+
+    return {"message": "Avatar removed successfully"}
 
 
 @router.get("/stats", dependencies=[Depends(require_role("admin"))])

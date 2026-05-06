@@ -102,6 +102,17 @@
                 <span class="logo-text" style="font-weight: 800; letter-spacing: -1px;">StreamDrop</span>
             </div>
 
+            <!-- User Info Section -->
+            <div class="user-info" id="userInfo" style="display: none;">
+                <div class="user-avatar" id="userAvatar">
+                    <span class="initial">?</span>
+                </div>
+                <div class="user-details">
+                    <p class="user-display-name" id="userDisplayName">Guest</p>
+                    <p class="user-username" id="userUsername">@guest</p>
+                </div>
+            </div>
+
             <div class="nav-items">
                 <div class="nav-item active" data-nav="home" onclick="app.navigateToRoot()">
                     <span class="material-symbols-rounded">home</span>
@@ -525,6 +536,95 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Profile Settings Modal -->
+    <div class="profile-modal hidden" id="profileModal">
+        <div class="profile-content">
+            <div class="profile-header">
+                <h2>Profile Settings</h2>
+                <button class="icon-btn" id="closeProfileBtn">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
+
+            <!-- Avatar Section -->
+            <div class="avatar-section">
+                <div class="avatar-preview" id="avatarPreview">
+                    <span class="avatar-placeholder">👤</span>
+                </div>
+                <div class="avatar-buttons">
+                    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    <button class="avatar-upload-btn" id="uploadAvatarBtn">
+                        <span class="material-symbols-rounded">upload</span>
+                        Upload Photo
+                    </button>
+                    <button class="avatar-remove-btn hidden" id="removeAvatarBtn">
+                        <span class="material-symbols-rounded">delete</span>
+                        Remove
+                    </button>
+                </div>
+            </div>
+
+            <!-- Profile Form -->
+            <form class="profile-form" id="profileForm">
+                <div class="form-group">
+                    <label for="displayNameInput">Display Name</label>
+                    <input type="text" id="displayNameInput" placeholder="Enter your name" maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="usernameDisplay">Username (read-only)</label>
+                    <input type="text" id="usernameDisplay" readonly disabled>
+                </div>
+
+                <!-- Preferences -->
+                <div class="preferences-section">
+                    <h3>Preferences</h3>
+
+                    <div class="preference-item">
+                        <span class="preference-label">Theme</span>
+                        <select id="themeSelect">
+                            <option value="dark">Dark</option>
+                            <option value="light">Light</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+
+                    <div class="preference-item">
+                        <span class="preference-label">Autoplay Videos</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoplayToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <span class="preference-label">Show Thumbnails</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="thumbnailsToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <span class="preference-label">Default Quality</span>
+                        <select id="qualitySelect">
+                            <option value="auto">Auto</option>
+                            <option value="1080p">1080p</option>
+                            <option value="720p">720p</option>
+                            <option value="480p">480p</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="profile-actions">
+                    <button type="button" class="cancel-btn" id="cancelProfileBtn">Cancel</button>
+                    <button type="submit" class="save-btn">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 

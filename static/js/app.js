@@ -137,6 +137,14 @@ class StreamDropApp {
         this.profileOverlay = document.getElementById('profile-overlay');
         this.adminChip = document.getElementById('admin-chip');
 
+        // Profile Elements
+        this.profileModal = document.getElementById('profileModal');
+        this.userInfo = document.getElementById('userInfo');
+        this.userAvatar = document.getElementById('userAvatar');
+        this.userDisplayName = document.getElementById('userDisplayName');
+        this.userUsername = document.getElementById('userUsername');
+        this.currentUser = null;
+
         const savedTheme = localStorage.getItem('theme') || 'dark';
         document.body.setAttribute('data-theme', savedTheme);
 
@@ -197,6 +205,7 @@ class StreamDropApp {
         this.setupEventListeners();
         this.setupPlayerEvents();
         this.setupMobileMenu();
+        this.setupProfile();
         this.connectWebSocket();
         await this.verifyAuth();
         await this.loadGallery();
@@ -2114,7 +2123,7 @@ class StreamDropApp {
 
     updateUserUI() {
         if (!this.currentUser) return;
-        
+
         // Header Profile Chip
         document.getElementById('user-display-name').innerText = this.currentUser.display_name || this.currentUser.username;
         const avatarUrl = this.currentUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${this.currentUser.username}`;
@@ -2132,6 +2141,299 @@ class StreamDropApp {
         document.getElementById('profile-avatar-large').src = avatarUrl;
         document.getElementById('profile-username').innerText = this.currentUser.display_name || this.currentUser.username;
         document.getElementById('profile-role').innerText = this.currentUser.role.toUpperCase();
+
+        // Update sidebar user info
+        this.loadUserProfile();
+    }
+
+    setupProfile() {
+        // Open profile modal
+        if (this.userInfo) {
+            this.userInfo.addEventListener('click', () => this.openProfileModal());
+        }
+
+        // Close modal
+        document.getElementById('closeProfileBtn').addEventListener('click', () => {
+            this.profileModal.classList.add('hidden');
+        });
+
+        document.getElementById('cancelProfileBtn').addEventListener('click', () => {
+            this.profileModal.classList.add('hidden');
+        });
+
+        // Avatar upload
+        document.getElementById('uploadAvatarBtn').addEventListener('click', () => {
+            document.getElementById('avatarInput').click();
+        });
+
+        document.getElementById('avatarInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                this.uploadAvatar(e.target.files[0]);
+            }
+        });
+
+        // Avatar remove
+        document.getElementById('removeAvatarBtn').addEventListener('click', () => {
+            this.removeAvatar();
+        });
+
+        // Profile form submit
+        document.getElementById('profileForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveProfile();
+        });
+    }
+
+    async loadUserProfile() {
+        try {
+            const response = await fetch('/api/auth/me');
+            if (!response.ok) return;
+
+            const user = await response.json();
+
+            // Update sidebar user info
+            this.userDisplayName.textContent = user.display_name || user.username;
+            this.userUsername.textContent = `@${user.username}`;
+
+            // Update avatar
+            if (user.avatar_url) {
+                this.userAvatar.innerHTML = `<img src="${user.avatar_url}" alt="Avatar">`;
+            } else {
+                const initial = (user.display_name || user.username).charAt(0).toUpperCase();
+                this.userAvatar.innerHTML = `<span class="initial">${initial}</span>`;
+            }
+
+            // Show user info
+            this.userInfo.style.display = 'flex';
+
+            // Store user data
+            this.currentUser = user;
+
+        } catch (error) {
+            debug('Failed to load user profile:', error);
+        }
+    }
+
+    async openProfileModal() {
+        this.profileModal.classList.remove('hidden');
+
+        // Load current user data
+        try {
+            const userResponse = await fetch('/api/auth/me');
+            const user = await userResponse.json();
+
+            // Load preferences
+            const prefsResponse = await fetch('/api/auth/me/preferences');
+            const prefs = await prefsResponse.json();
+
+            // Populate form
+            document.getElementById('displayNameInput').value = user.display_name || '';
+            document.getElementById('usernameDisplay').value = user.username;
+
+            // Update avatar preview
+            const avatarPreview = document.getElementById('avatarPreview');
+            if (user.avatar_url) {
+                avatarPreview.innerHTML = `<img src="${user.avatar_url}" alt="Avatar">`;
+                document.getElementById('removeAvatarBtn').classList.remove('hidden');
+            } else {
+                const initial = (user.display_name || user.username).charAt(0).toUpperCase();
+                avatarPreview.innerHTML = `<span class="avatar-placeholder">${initial}</span>`;
+                document.getElementById('removeAvatarBtn').classList.add('hidden');
+            }
+
+            // Populate preferences
+            document.getElementById('themeSelect').value = prefs.theme || 'dark';
+            document.getElementById('autoplayToggle').checked = prefs.autoplay !== false;
+            document.getElementById('thumbnailsToggle').checked = prefs.show_thumbnails !== false;
+            document.getElementById('qualitySelect').value = prefs.default_quality || 'auto';
+
+        } catch (error) {
+            this.showToast('Failed to load profile data', true);
+        }
+    }
+
+    async uploadAvatar(file) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            this.showToast('Please select an image file', true);
+            return;
+        }
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            this.showToast('Image too large. Maximum size is 5MB', true);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            this.showLoadingOverlay('Uploading avatar...');
+
+            const response = await fetch('/api/auth/me/avatar', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Upload failed');
+            }
+
+            const result = await response.json();
+
+            // Update preview
+            document.getElementById('avatarPreview').innerHTML =
+                `<img src="${result.avatar_url}?t=${Date.now()}" alt="Avatar">`;
+            document.getElementById('removeAvatarBtn').classList.remove('hidden');
+
+            // Update sidebar
+            await this.loadUserProfile();
+
+            this.showToast('Avatar updated successfully!');
+
+        } catch (error) {
+            this.showToast(`Avatar upload failed: ${error.message}`, true);
+        } finally {
+            this.hideLoadingOverlay();
+        }
+    }
+
+    async removeAvatar() {
+        if (!confirm('Remove your profile picture?')) return;
+
+        try {
+            const response = await fetch('/api/auth/me/avatar', {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error('Failed to remove avatar');
+
+            // Update preview to initial
+            const initial = this.currentUser.display_name?.charAt(0) ||
+                           this.currentUser.username?.charAt(0) || '?';
+            document.getElementById('avatarPreview').innerHTML =
+                `<span class="avatar-placeholder">${initial.toUpperCase()}</span>`;
+            document.getElementById('removeAvatarBtn').classList.add('hidden');
+
+            // Update sidebar
+            await this.loadUserProfile();
+
+            this.showToast('Avatar removed');
+
+        } catch (error) {
+            this.showToast('Failed to remove avatar', true);
+        }
+    }
+
+    async saveProfile() {
+        const displayName = document.getElementById('displayNameInput').value.trim();
+        const theme = document.getElementById('themeSelect').value;
+        const autoplay = document.getElementById('autoplayToggle').checked;
+        const showThumbnails = document.getElementById('thumbnailsToggle').checked;
+        const defaultQuality = document.getElementById('qualitySelect').value;
+
+        try {
+            this.showLoadingOverlay('Saving profile...');
+
+            // Update profile
+            const profileResponse = await fetch('/api/auth/me', {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    display_name: displayName || null
+                })
+            });
+
+            if (!profileResponse.ok) {
+                throw new Error('Failed to update profile');
+            }
+
+            // Update preferences
+            const prefsResponse = await fetch('/api/auth/me/preferences', {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    theme,
+                    autoplay,
+                    show_thumbnails: showThumbnails,
+                    default_quality: defaultQuality
+                })
+            });
+
+            if (!prefsResponse.ok) {
+                throw new Error('Failed to update preferences');
+            }
+
+            // Apply theme if changed
+            this.applyTheme(theme);
+
+            // Update sidebar
+            await this.loadUserProfile();
+
+            this.profileModal.classList.add('hidden');
+            this.showToast('Profile updated successfully!');
+
+        } catch (error) {
+            this.showToast(`Failed to save profile: ${error.message}`, true);
+        } finally {
+            this.hideLoadingOverlay();
+        }
+    }
+
+    applyTheme(theme) {
+        // Store theme preference
+        localStorage.setItem('theme', theme);
+
+        // Apply theme
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+        } else if (theme === 'dark') {
+            document.body.classList.remove('light-theme');
+        } else {
+            // Auto - use system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+                document.body.classList.remove('light-theme');
+            } else {
+                document.body.classList.add('light-theme');
+            }
+        }
+    }
+
+    showLoadingOverlay(message) {
+        // Create or use existing loading overlay
+        let overlay = document.getElementById('loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                flex-direction: column;
+                gap: 16px;
+            `;
+            document.body.appendChild(overlay);
+        }
+        overlay.innerHTML = `
+            <div style="width: 40px; height: 40px; border: 3px solid rgba(139, 92, 246, 0.3); border-top-color: #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="color: white; font-size: 16px; font-weight: 500;">${message}</p>
+        `;
+        overlay.style.display = 'flex';
+    }
+
+    hideLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
     }
 
     toggleAuthMode() {

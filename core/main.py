@@ -27,6 +27,10 @@ from config import HOST, PORT, SHARED_FOLDER, STATIC_DIR, LOG_DIR, TRANSCODE_DIR
 from core.security import auth_middleware
 from core.discovery import ServiceDiscovery, get_local_ip, get_server_url, generate_qr_code
 
+# Create avatars directory if it doesn't exist
+AVATARS_DIR = STATIC_DIR / "avatars"
+AVATARS_DIR.mkdir(exist_ok=True, parents=True)
+
 # Routers
 from routers.stream_api import router as stream_router
 from routers.file_api import router as file_router
@@ -143,6 +147,8 @@ app.add_middleware(
 
 # Static file mounts
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Mount avatars directory for user profile pictures
+app.mount("/static/avatars", StaticFiles(directory=str(AVATARS_DIR)), name="avatars")
 # SHARED_FOLDER mounted for direct file serving (legacy /shared/ URLs)
 # In Docker, this volume is read-only — the mount remains functional for GET.
 app.mount("/shared", StaticFiles(directory=str(SHARED_FOLDER)), name="shared")
