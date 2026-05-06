@@ -136,27 +136,41 @@ class StreamDropApp {
 
     showToast(message, isError = false) {
         const toast = document.createElement('div');
+        toast.className = 'modern-toast';
         toast.style.cssText = `
             position: fixed;
-            bottom: 80px;
+            bottom: 40px;
             left: 50%;
-            transform: translateX(-50%);
-            background: ${isError ? '#ffb4ab' : '#313033'};
-            color: ${isError ? '#690005' : '#f4eff4'};
+            transform: translateX(-50%) translateY(100px);
+            background: ${isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
+            backdrop-filter: blur(10px);
+            color: white;
             padding: 12px 24px;
-            border-radius: 25px;
-            font-size: 14px;
-            font-weight: 500;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
             z-index: 9999;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            animation: toastIn 0.3s ease-out;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         `;
-        toast.innerText = message;
+        toast.innerHTML = `
+            <span class="material-symbols-rounded">${isError ? 'error' : 'check_circle'}</span>
+            <span>${message}</span>
+        `;
         document.body.appendChild(toast);
 
+        // Animate in
         setTimeout(() => {
-            toast.style.animation = 'toastOut 0.3s ease-in forwards';
-            setTimeout(() => toast.remove(), 300);
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        }, 10);
+
+        setTimeout(() => {
+            toast.style.transform = 'translateX(-50%) translateY(100px)';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 500);
         }, 3000);
     }
 
@@ -789,18 +803,34 @@ class StreamDropApp {
 
     createMediaCard(file) {
         const card = document.createElement('div');
-        card.className = 'media-card';
+        card.className = 'media-card modern-card';
         
         const isFolder = file.is_dir;
         const isVideo = file.type === 'video';
         const displayName = this.cleanFilename(file.name);
+
+        // Interactive Playful Element: Subtle tilt effect
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = (y - centerY) / 10;
+            const rotateY = (centerX - x) / 10;
+            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`;
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale(1)';
+        });
         
         let content = '';
         if (isFolder) {
             const initials = this.getInitials(file.name);
-            content = `<div class="folder-avatar">${initials}</div>`;
+            content = `<div class="folder-avatar" style="background: var(--primary-glow); color: var(--primary); font-weight: 800;">${initials}</div>`;
         } else if (file.type === 'stream') {
-            content = `<span class="material-symbols-rounded" style="font-size: 64px; color: var(--m3-primary);">sensors</span>`;
+            content = `<span class="material-symbols-rounded" style="font-size: 64px; color: var(--primary); animation: pulse 2s infinite;">sensors</span>`;
         } else if (file.thumbnail_url) {
             content = `<img src="${file.thumbnail_url}" loading="lazy" alt="${file.name}" onerror="this.src='/static/img/fallback.png'; this.onerror=null;">`;
         } else {
@@ -808,57 +838,46 @@ class StreamDropApp {
             content = `<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">${icon}</span>`;
         }
 
-        const videoOverlay = isVideo ? `<div class="icon-overlay"><span class="material-symbols-rounded">play_arrow</span></div>` : '';
+        const videoOverlay = isVideo ? `<div class="play-btn"><span class="material-symbols-rounded">play_arrow</span></div>` : '';
         const favClass = file.is_favorite ? 'active' : '';
 
         // --- Build Glanceable Metadata Tags ---
         const metaTags = [];
-        
-        // Type tag
         const typeIcons = { video: 'movie', audio: 'music_note', image: 'image', document: 'description', archive: 'inventory_2' };
-        const typeClass = isFolder ? 'type-folder' : `type-${file.type === 'document' ? 'doc' : file.type}`;
         const typeLabel = isFolder ? 'Folder' : (file.type || 'File');
         const typeIcon = isFolder ? 'folder' : (typeIcons[file.type] || 'draft');
-        metaTags.push(`<span class="meta-tag ${typeClass}"><span class="material-symbols-rounded">${typeIcon}</span>${typeLabel}</span>`);
+        metaTags.push(`<span class="meta-tag"><span class="material-symbols-rounded">${typeIcon}</span>${typeLabel}</span>`);
 
-        // File extension tag
         if (!isFolder && file.name) {
             const ext = file.name.split('.').pop();
             if (ext && ext.length <= 5 && ext !== file.name) {
-                metaTags.push(`<span class="meta-tag type-ext">.${ext.toUpperCase()}</span>`);
+                metaTags.push(`<span class="meta-tag">.${ext.toUpperCase()}</span>`);
             }
-        }
-
-        // Size tag
-        if (file.size && !isFolder) {
-            metaTags.push(`<span class="meta-tag type-size"><span class="material-symbols-rounded">straighten</span>${file.size}</span>`);
-        }
-
-        // Duration tag for videos (if available)
-        if (file.duration) {
-            metaTags.push(`<span class="meta-tag type-video"><span class="material-symbols-rounded">schedule</span>${file.duration}</span>`);
         }
 
         const metaOverlay = `
             <div class="card-meta-overlay">
                 <div class="meta-tags">${metaTags.join('')}</div>
                 <div class="meta-title">${displayName}</div>
-                ${file.size ? `<div class="meta-subtitle">${file.size} • ${file.type || 'File'}</div>` : ''}
             </div>
         `;
 
         card.innerHTML = `
-            <div class="fav-btn ${favClass}" data-filename="${file.filename}">
-                <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
-            </div>
             <div class="card-media">
                 ${content}
+                ${videoOverlay}
+                ${metaOverlay}
             </div>
-            ${videoOverlay}
-            ${metaOverlay}
-            <div class="info">
-                <div class="title">${displayName}</div>
-                <div class="subtitle">${file.size || (isFolder ? 'Folder' : file.type)}</div>
+            <div class="card-info" style="padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <div class="card-title" style="font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">${displayName}</div>
+                <div class="card-actions" style="display: flex; gap: 4px;">
+                    <div class="fav-btn ${favClass}" data-filename="${file.filename}" style="padding: 4px; border-radius: 50%; transition: var(--transition-smooth); cursor: pointer;">
+                        <span class="material-symbols-rounded" style="font-size: 18px; ${file.is_favorite ? 'color: #facc15;' : ''}; font-variation-settings: 'FILL' ${file.is_favorite ? 1 : 0}">star</span>
+                    </div>
+                    <div class="more-btn" onclick="event.stopPropagation(); app.showContextMenu(event, '${file.filename}')" style="padding: 4px; border-radius: 50%; transition: var(--transition-smooth); cursor: pointer;">
+                        <span class="material-symbols-rounded" style="font-size: 18px;">more_vert</span>
+                    </div>
+                </div>
             </div>
         `;
 
@@ -1903,13 +1922,48 @@ class StreamDropApp {
             if (res.ok) {
                 this.currentUser = await res.json();
                 this.updateUserUI();
-                document.getElementById('auth-modal').style.display = 'none';
+                this.hideAuthModal();
+                this.setupSessionRefresh();
             } else {
-                document.getElementById('auth-modal').style.display = 'flex';
+                this.showAuthModal();
             }
         } catch (error) {
             console.error("Auth verification failed", error);
         }
+    }
+
+    setupSessionRefresh() {
+        if (this.refreshInterval) clearInterval(this.refreshInterval);
+        this.refreshInterval = setInterval(() => this.verifyAuth(), 30 * 60 * 1000);
+    }
+
+    showAuthModal() {
+        const modal = document.getElementById('auth-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        modal.style.opacity = '0';
+        modal.style.transition = 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+        setTimeout(() => modal.style.opacity = '1', 10);
+    }
+
+    hideAuthModal() {
+        const modal = document.getElementById('auth-modal');
+        if (!modal) return;
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            // Playful entrance for main content
+            const main = document.querySelector('.main-content');
+            if (main) {
+                main.style.opacity = '0';
+                main.style.transform = 'translateY(20px)';
+                main.style.transition = 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)';
+                setTimeout(() => {
+                    main.style.opacity = '1';
+                    main.style.transform = 'translateY(0)';
+                }, 100);
+            }
+        }, 500);
     }
 
     updateUserUI() {
@@ -2001,13 +2055,26 @@ class StreamDropApp {
         document.getElementById('hero-meta').innerText = `Ready to watch in ${this.currentPath || 'Home'}`;
         
         if (featured.thumbnail_url) {
-            document.getElementById('hero-bg').style.backgroundImage = `url(${featured.thumbnail_url})`;
+            const bg = document.getElementById('hero-bg');
+            bg.style.backgroundImage = `url(${featured.thumbnail_url})`;
+            bg.style.opacity = '0';
+            bg.style.transition = 'opacity 1.5s ease';
+            setTimeout(() => bg.style.opacity = '0.4', 100);
         }
 
-        document.getElementById('hero-play-btn').onclick = () => {
+        const playBtn = document.getElementById('hero-play-btn');
+        playBtn.onclick = () => {
             const index = this.currentPlaylist.findIndex(v => v.filename === featured.filename);
             this.openPlayer(index);
         };
+        
+        // Playful hover effect for hero play button
+        playBtn.addEventListener('mouseenter', () => {
+            playBtn.style.transform = 'scale(1.1) rotate(2deg)';
+        });
+        playBtn.addEventListener('mouseleave', () => {
+            playBtn.style.transform = 'scale(1) rotate(0deg)';
+        });
 
         hero.classList.remove('hidden');
     }
@@ -2066,49 +2133,59 @@ class StreamDropApp {
         };
 
         this.adminContent.innerHTML = `
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <span class="material-symbols-rounded">person</span>
-                    <div class="stat-value">${data.total_users}</div>
-                    <div class="stat-label">Total Users</div>
+            <div class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; padding: 20px;">
+                <div class="stat-card modern-card" style="background: var(--surface-hover); padding: 1.5rem; border-radius: 20px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <div style="background: var(--primary-glow); padding: 8px; border-radius: 10px;">
+                            <span class="material-symbols-rounded" style="color: var(--primary);">group</span>
+                        </div>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Total Users</span>
+                    </div>
+                    <div style="font-size: 2rem; font-weight: 800;">${data.total_users}</div>
                 </div>
-                <div class="stat-card">
-                    <span class="material-symbols-rounded">movie</span>
-                    <div class="stat-value">${data.total_media}</div>
-                    <div class="stat-label">Media Files</div>
+                <div class="stat-card modern-card" style="background: var(--surface-hover); padding: 1.5rem; border-radius: 20px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <div style="background: rgba(59, 130, 246, 0.2); padding: 8px; border-radius: 10px;">
+                            <span class="material-symbols-rounded" style="color: #3b82f6;">movie</span>
+                        </div>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Media Assets</span>
+                    </div>
+                    <div style="font-size: 2rem; font-weight: 800;">${data.total_media}</div>
                 </div>
-                <div class="stat-card">
-                    <span class="material-symbols-rounded">play_circle</span>
-                    <div class="stat-value">${data.total_plays}</div>
-                    <div class="stat-label">Total Plays</div>
+                <div class="stat-card modern-card" style="background: var(--surface-hover); padding: 1.5rem; border-radius: 20px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <div style="background: rgba(16, 185, 129, 0.2); padding: 8px; border-radius: 10px;">
+                            <span class="material-symbols-rounded" style="color: #10b981;">play_circle</span>
+                        </div>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Total Plays</span>
+                    </div>
+                    <div style="font-size: 2rem; font-weight: 800;">${data.total_plays}</div>
                 </div>
-                <div class="stat-card">
-                    <span class="material-symbols-rounded">storage</span>
-                    <div class="stat-value">${formatBytes(data.total_storage_bytes)}</div>
-                    <div class="stat-label">Storage Used</div>
-                </div>
-                <div class="stat-card">
-                    <span class="material-symbols-rounded">history</span>
-                    <div class="stat-value">${data.audit_count}</div>
-                    <div class="stat-label">Audit Logs</div>
+                <div class="stat-card modern-card" style="background: var(--surface-hover); padding: 1.5rem; border-radius: 20px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <div style="background: rgba(245, 158, 11, 0.2); padding: 8px; border-radius: 10px;">
+                            <span class="material-symbols-rounded" style="color: #f59e0b;">storage</span>
+                        </div>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Storage</span>
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 800;">${formatBytes(data.total_storage_bytes)}</div>
                 </div>
             </div>
             
-            <h3 style="margin: 24px 0 16px;">System Health</h3>
-            <div class="admin-table-container">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Parameter</th>
-                            <th>Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Platform</td><td>${navigator.platform}</td></tr>
-                        <tr><td>Browser</td><td>${navigator.userAgent.split(' ').pop()}</td></tr>
-                        <tr><td>Connection</td><td>${navigator.onLine ? 'Online' : 'Offline'}</td></tr>
-                    </tbody>
-                </table>
+            <div style="padding: 0 20px 20px;">
+                <h3 style="margin: 24px 0 16px; font-size: 1.1rem; font-weight: 700;">Quick Actions</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                    <button class="modern-btn" style="width: 100%; height: auto; padding: 16px; flex-direction: column; gap: 8px; text-align: left; align-items: flex-start;" onclick="app.switchAdminTab('users')">
+                        <span class="material-symbols-rounded">person_add</span>
+                        <div style="font-weight: 600;">Manage Users</div>
+                        <div style="font-size: 0.75rem; opacity: 0.6;">Add, edit or deactivate user accounts</div>
+                    </button>
+                    <button class="modern-btn" style="width: 100%; height: auto; padding: 16px; flex-direction: column; gap: 8px; text-align: left; align-items: flex-start;" onclick="app.switchAdminTab('audit')">
+                        <span class="material-symbols-rounded">security</span>
+                        <div style="font-weight: 600;">Security Audit</div>
+                        <div style="font-size: 0.75rem; opacity: 0.6;">Review recent system activities and logins</div>
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -2118,21 +2195,25 @@ class StreamDropApp {
         const data = await res.json();
         const logs = data.logs || [];
         
-        const getActionClass = (action) => {
-            if (action.includes('DELETE') || action.includes('DEACTIVATE')) return 'badge-danger';
-            if (action.includes('CREATE') || action.includes('REGISTER') || action === 'LOGIN') return 'badge-success';
-            if (action.includes('UPDATE') || action.includes('EDIT')) return 'badge-warning';
-            return 'badge-info';
+        const getActionStyle = (action) => {
+            if (action.includes('DELETE') || action.includes('DEACTIVATE')) return 'background: rgba(239, 68, 68, 0.1); color: #ef4444;';
+            if (action.includes('CREATE') || action.includes('REGISTER') || action === 'LOGIN') return 'background: rgba(16, 185, 129, 0.1); color: #10b981;';
+            if (action.includes('UPDATE') || action.includes('EDIT')) return 'background: rgba(245, 158, 11, 0.1); color: #f59e0b;';
+            return 'background: rgba(59, 130, 246, 0.1); color: #3b82f6;';
         };
 
         const rows = logs.map(log => `
-            <tr class="log-row">
-                <td>${new Date(log.timestamp).toLocaleString()}</td>
-                <td><span class="badge ${getActionClass(log.action)}">${log.action}</span></td>
-                <td><div style="font-weight:600;">${log.user}</div></td>
-                <td><div style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:0.8;">${log.resource || '-'}</div></td>
-                <td>
-                    <div class="log-details" onclick="this.classList.toggle('expanded')">
+            <tr class="log-row" style="border-bottom: 1px solid var(--border); transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 12px; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">${new Date(log.timestamp).toLocaleString()}</td>
+                <td style="padding: 12px;">
+                    <span class="meta-tag" style="${getActionStyle(log.action)} border: none; font-size: 0.7rem; padding: 2px 8px;">
+                        ${log.action}
+                    </span>
+                </td>
+                <td style="padding: 12px;"><div style="font-weight:700; font-size: 0.85rem;">${log.user}</div></td>
+                <td style="padding: 12px;"><div style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size: 0.8rem; opacity: 0.7;">${log.resource || '-'}</div></td>
+                <td style="padding: 12px;">
+                    <div class="log-details modern-scroll" style="max-width: 250px; max-height: 40px; overflow-y: auto; font-size: 0.75rem; font-family: monospace; opacity: 0.6; cursor: pointer;" onclick="this.style.maxHeight='none'; this.style.opacity='1'">
                         ${log.details ? JSON.stringify(log.details) : '-'}
                     </div>
                 </td>
@@ -2140,26 +2221,29 @@ class StreamDropApp {
         `).join('');
 
         this.adminContent.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h3 style="margin:0;">Activity Audit</h3>
-                <div class="search-box" style="max-width:300px;">
-                    <span class="material-symbols-rounded">search</span>
-                    <input type="text" placeholder="Filter logs..." oninput="app.filterAdminLogs(this.value)">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding: 20px;">
+                <div>
+                    <h3 style="margin:0; font-size: 1.1rem; font-weight: 700;">Security Audit</h3>
+                    <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--text-muted);">Real-time monitoring of system operations</p>
+                </div>
+                <div class="search-bar" style="max-width: 250px; padding: 6px 12px;">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">search</span>
+                    <input type="text" placeholder="Filter activity..." oninput="app.filterAdminLogs(this.value)" style="font-size: 0.85rem;">
                 </div>
             </div>
-            <div class="admin-table-container">
-                <table class="admin-table" id="audit-table">
+            <div class="admin-table-container modern-scroll" style="padding: 0 20px 20px; overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;" id="audit-table">
                     <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Action</th>
-                            <th>User</th>
-                            <th>Resource</th>
-                            <th>Details</th>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Timestamp</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Action</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">User</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Resource</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Details</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${rows || '<tr><td colspan="5" style="text-align:center;">No activity logs found.</td></tr>'}
+                        ${rows || '<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-muted);">No activity logs found.</td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -2181,41 +2265,40 @@ class StreamDropApp {
         const users = data.users || [];
         
         const rows = users.map(u => `
-            <tr data-user-id="${u.id}">
-                <td>
+            <tr data-user-id="${u.id}" style="border-bottom: 1px solid var(--border); transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 16px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <div style="width:32px; height:32px; border-radius:50%; background:var(--m3-primary-container); color:var(--m3-on-primary-container); display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:12px;">
+                        <div style="width:40px; height:40px; border-radius:12px; background:var(--primary-glow); color:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; border: 1px solid var(--border);">
                             ${u.username.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                            <div>${u.username} ${u.id === this.currentUser.id ? '<span style="font-size:10px; opacity:0.5;">(YOU)</span>' : ''}</div>
-                            <div style="font-size:12px; opacity:0.6;">Last login: ${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</div>
+                            <div style="font-weight:700; font-size: 0.95rem;">${u.username} ${u.id === this.currentUser.id ? '<span style="font-size:10px; opacity:0.5; background: var(--primary); color: white; padding: 2px 6px; border-radius: 10px; margin-left: 4px;">YOU</span>' : ''}</div>
+                            <div style="font-size:0.75rem; color: var(--text-muted);">Last login: ${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</div>
                         </div>
                     </div>
                 </td>
-                <td>
-                    <select class="admin-select" onchange="app.changeUserRole(${u.id}, this.value)" ${u.id === this.currentUser.id ? 'disabled' : ''}>
-                        <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>Guest</option>
-                        <option value="family" ${u.role === 'family' ? 'selected' : ''}>Family</option>
-                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
-                    </select>
+                <td style="padding: 16px;">
+                    <div class="modern-select-wrapper" style="position: relative;">
+                        <select class="admin-select" onchange="app.changeUserRole(${u.id}, this.value)" ${u.id === this.currentUser.id ? 'disabled' : ''} style="background: var(--surface-hover); color: var(--text-main); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; outline: none;">
+                            <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>Guest</option>
+                            <option value="family" ${u.role === 'family' ? 'selected' : ''}>Family</option>
+                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                        </select>
+                    </div>
                 </td>
-                <td>
-                    <span class="badge ${u.is_active ? 'active' : 'inactive'}">${u.is_active ? 'Active' : 'Disabled'}</span>
+                <td style="padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${u.is_active ? '#10b981' : '#ef4444'}; box-shadow: 0 0 8px ${u.is_active ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};"></div>
+                        <span style="font-size: 0.85rem; font-weight: 600;">${u.is_active ? 'Active' : 'Disabled'}</span>
+                    </div>
                 </td>
-                <td>
-                    <div style="display:flex; gap:8px;">
-                        <button class="icon-btn ${u.is_active ? 'danger' : 'success'}" 
-                                onclick="app.toggleUserActive(${u.id}, ${u.is_active})" 
-                                title="${u.is_active ? 'Deactivate' : 'Activate'}"
-                                ${u.id === this.currentUser.id ? 'disabled' : ''}>
-                            <span class="material-symbols-rounded">${u.is_active ? 'block' : 'check_circle'}</span>
+                <td style="padding: 16px;">
+                    <div style="display:flex; gap:12px;">
+                        <button class="modern-btn" onclick="app.toggleUserActive(${u.id}, ${u.is_active})" title="${u.is_active ? 'Deactivate' : 'Activate'}" ${u.id === this.currentUser.id ? 'disabled' : ''} style="width: 32px; height: 32px; border-color: ${u.is_active ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${u.is_active ? '#ef4444' : '#10b981'};">
+                            <span class="material-symbols-rounded" style="font-size: 18px;">${u.is_active ? 'block' : 'check_circle'}</span>
                         </button>
-                        <button class="icon-btn danger" 
-                                onclick="app.deleteUser(${u.id}, '${u.username}')" 
-                                title="Delete User"
-                                ${u.id === this.currentUser.id ? 'disabled' : ''}>
-                            <span class="material-symbols-rounded">delete</span>
+                        <button class="modern-btn" onclick="app.deleteUser(${u.id}, '${u.username}')" title="Delete User" ${u.id === this.currentUser.id ? 'disabled' : ''} style="width: 32px; height: 32px; border-color: rgba(239, 68, 68, 0.2); color: #ef4444;">
+                            <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
                         </button>
                     </div>
                 </td>
@@ -2223,25 +2306,28 @@ class StreamDropApp {
         `).join('');
 
         this.adminContent.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h3 style="margin:0;">User Accounts</h3>
-                <button class="hero-btn" onclick="app.showCreateUserModal()" style="padding: 8px 16px; font-size:13px;">
-                    <span class="material-symbols-rounded" style="font-size:18px;">person_add</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding: 20px;">
+                <div>
+                    <h3 style="margin:0; font-size: 1.1rem; font-weight: 700;">User Directory</h3>
+                    <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--text-muted);">Manage access and permissions for your network</p>
+                </div>
+                <button class="modern-btn" onclick="app.showCreateUserModal()" style="width: auto; height: auto; padding: 10px 20px; background: var(--primary); color: white; border: none; font-weight: 700; gap: 8px;">
+                    <span class="material-symbols-rounded">person_add</span>
                     Create User
                 </button>
             </div>
-            <div class="admin-table-container">
-                <table class="admin-table">
+            <div class="admin-table-container modern-scroll" style="padding: 0 20px 20px; overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
                     <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">User Identity</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Role</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Status</th>
+                            <th style="padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${rows || '<tr><td colspan="4" style="text-align:center;">No users found.</td></tr>'}
+                        ${rows || '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">No users found.</td></tr>'}
                     </tbody>
                 </table>
             </div>

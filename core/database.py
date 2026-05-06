@@ -85,6 +85,7 @@ class User(Base):
 class MediaMetadata(Base):
     __tablename__ = "media_metadata"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     rel_path = Column(String(1024), unique=True, nullable=False, index=True)
     video_codec = Column(String(32), nullable=True)
     width = Column(Integer, nullable=True)
@@ -172,22 +173,17 @@ async def bootstrap_system():
     """
     Bootstrap the system: 
     1. Create all tables.
-    2. Apply simple migrations for existing tables (e.g., adding missing columns).
+    2. Run the migration system for schema updates.
     3. Seed initial admin user if none exists.
     """
+    from core.migrations import run_migrations
+    
+    # Ensure initial tables exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
-        # Simple migration for AuditLog: check if user_id column exists
-        if DATABASE_URL.startswith("sqlite"):
-            def migrate_audit_logs(connection):
-                cursor = connection.execute("PRAGMA table_info(audit_logs)")
-                columns = [row[1] for row in cursor.fetchall()]
-                if columns and "user_id" not in columns:
-                    logger.info("🛠️ Migrating 'audit_logs' table: adding 'user_id' column.")
-                    connection.execute("ALTER TABLE audit_logs ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL")
-            
-            await conn.run_sync(migrate_audit_logs)
+    
+    # Run formal migrations
+    await run_migrations()
     
     # Check for existing users and seed admin if empty
     async with AsyncSessionFactory() as db:
